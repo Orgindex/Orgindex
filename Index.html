@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orgindex – Företagsinformation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #10243e;
+        }
+
+        header {
+            background: #0b1f38;
+            color: white;
+            padding: 24px 5%;
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        header span {
+            color: #20c9b5;
+        }
+
+        .hero {
+            background: #0b1f38;
+            color: white;
+            text-align: center;
+            padding: 100px 20px;
+        }
+
+        h1 {
+            font-size: clamp(32px, 5vw, 52px);
+            margin-bottom: 15px;
+        }
+
+        .search {
+            display: flex;
+            max-width: 750px;
+            margin: 35px auto;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        input {
+            flex: 1;
+            min-width: 200px;
+            padding: 20px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+        }
+
+        button {
+            background: #20c9b5;
+            color: #0b1f38;
+            border: none;
+            padding: 20px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 25px;
+            padding: 50px 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 300px;
+            box-shadow: 0 4px 20px #0000000a;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    Org<span>index</span>
+</header>
+
+<section class="hero">
+    <h1>All företagsinformation. En sökning.</h1>
+    <p>Sveriges företag på ett ställe.</p>
+
+    <form class="search" onsubmit="event.preventDefault(); alert('Företagssökning kommer snart!');">
+        <input type="search" placeholder="Sök företagsnamn eller organisationsnummer" aria-label="Sök företag" required>
+        <button type="submit">Sök företag</button>
+    </form>
+</section>
+
+<section class="features">
+    <div class="card">
+        <h2>Företagsinformation</h2>
+        <p>Hitta företag, kontaktuppgifter och bolagsinformation.</p>
+    </div>
+
+    <div class="card">
+        <h2>Ekonomi & nyckeltal</h2>
+        <p>Analysera omsättning, resultat och ekonomisk utveckling.</p>
+    </div>
+
+    <div class="card">
+        <h2>Orgindex AI</h2>
+        <p>Framtidens intelligenta företagsanalys och företagsbetyg.</p>
+    </div>
+</section>
+
+<footer>
+    &copy; 2026 Orgindex.se
+</footer>
+
+</body>
+</html>
