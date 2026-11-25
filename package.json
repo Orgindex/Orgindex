@@ -4,6 +4,6 @@
     "pg": "8.16.3"
   },
   "scripts": {
-    "postinstall": "node scripts/import-scb.js"
+    "postinstall": "node scripts/import-scb.js && node scripts/enrich-scb.js"
   }
 }
