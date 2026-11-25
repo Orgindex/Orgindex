@@ -8,7 +8,7 @@ await c.query('CREATE TABLE IF NOT EXISTS orgindex_companies (orgnr text PRIMARY
 await c.query('CREATE TABLE IF NOT EXISTS orgindex_import_state (id integer PRIMARY KEY,cursor_id bigint NOT NULL,done boolean NOT NULL DEFAULT false)');
 await c.query('INSERT INTO orgindex_import_state(id,cursor_id) VALUES(1,100) ON CONFLICT DO NOTHING');
 for(let i=0;i<2000;i++){
-const total=Number((await c.query('SELECT count(*)::int AS count FROM orgindex_companies')).rows[0].count);if(total>=1000000){console.log('Import target reached: '+total);break;}
+const total=Number((await c.query('SELECT count(*)::int AS count FROM orgindex_companies')).rows[0].count);if(total>=1804297){console.log('Import target reached: '+total);break;}
 const state=(await c.query('SELECT * FROM orgindex_import_state WHERE id=1')).rows[0];if(state.done)break;
 const size=Number((await c.query('SELECT pg_database_size(current_database()) AS bytes')).rows[0].bytes);if(size>=850000000){console.log('Import paused: storage threshold');break;}
 const u=new URL('https://apiafr.scb.se/v1/juridiskaenheter');u.searchParams.set('limit','1000');u.searchParams.set('cursorId',String(state.cursor_id));
