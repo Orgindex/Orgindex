@@ -17,7 +17,7 @@ module.exports = async (req,res) => {
     const industryFilter=!suggest&&!!industry;
     const query=numeric?
       "SELECT orgnr,name,source FROM orgindex_companies WHERE orgnr LIKE $1 || '%' AND orgnr ~ '^[0-9]{2}[2-9][0-9]{7}$' AND (NOT $2::boolean OR orgnr='5560094178') ORDER BY orgnr LIMIT $3":
-      "SELECT orgnr,name,source FROM orgindex_companies WHERE strpos(lower(name),lower($1))>0 AND orgnr ~ '^[0-9]{2}[2-9][0-9]{7}$' AND (NOT $2::boolean OR orgnr='5560094178') ORDER BY CASE WHEN lower(name)=lower($1) THEN 0 WHEN strpos(lower(name),lower($1))=1 THEN 1 ELSE 2 END,length(name),name,orgnr LIMIT $3";
+      "SELECT orgnr,name,source FROM orgindex_companies WHERE lower(name) LIKE '%' || replace(replace(replace(lower($1),'!','!!'),'%','!%'),'_','!_') || '%' ESCAPE '!' AND orgnr ~ '^[0-9]{2}[2-9][0-9]{7}$' AND (NOT $2::boolean OR orgnr='5560094178') ORDER BY CASE WHEN lower(name)=lower($1) THEN 0 WHEN strpos(lower(name),lower($1))=1 THEN 1 ELSE 2 END,length(name),name,orgnr LIMIT $3";
     const result=await p.query(query,[numeric?digits:q,industryFilter,limit]);
     return res.json({companies:result.rows.map(c=>({...c,industry:c.orgnr==='5560094178'?'Vitvaruindustri – hushållsapparater':null})),suggested:false,coverage:'Företagsregister – namn och organisationsnummer'});
   } catch(e) {
