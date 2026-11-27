@@ -4,6 +4,6 @@
     "pg": "8.16.3"
   },
   "scripts": {
-    "postinstall": "node scripts/import-scb.js && node scripts/enrich-scb.js"
+    "postinstall": "node -e '(async()=>{const id=process.env.BOLAGSVERKET_CLIENT_ID,secret=process.env.BOLAGSVERKET_CLIENT_SECRET;if(!id||!secret){console.log('\\''Bolagsverket auth check: missing configuration'\\'');return}try{const r=await fetch('\\''https://portal.api.bolagsverket.se/oauth2/token'\\'',{method:'\\''POST'\\'',redirect:'\\''error'\\'',headers:{Authorization:'\\''Basic '\\''+Buffer.from(id+'\\'':'\\''+secret).toString('\\''base64'\\''),'\\''Content-Type'\\'':'\\''application/x-www-form-urlencoded'\\''},body:new URLSearchParams({grant_type:'\\''client_credentials'\\'',scope:'\\''vardefulla-datamangder:read'\\''}),signal:AbortSignal.timeout(12000)});const d=await r.json().catch(()=>({}));console.log('\\''Bolagsverket auth check: HTTP '\\''+r.status+'\\''; token received='\\''+Boolean(r.ok&&d.access_token))}catch(e){console.log('\\''Bolagsverket auth check: network or response failure'\\'')}})()' && node scripts/import-scb.js && node scripts/enrich-scb.js"
   }
 }
