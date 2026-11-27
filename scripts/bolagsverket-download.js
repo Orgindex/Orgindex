@@ -4,9 +4,9 @@ async function downloadDocument(sourceUrl, token){
  const api=url.origin==='https://gw.api.bolagsverket.se'&&/^\/vardefulla-datamangder\/v1\/dokument\/[^/]+$/.test(url.pathname);
  const bulk=url.origin==='https://vardefulla-datamangder.bolagsverket.se'&&/^\/arsredovisningar-bulkfiler\/arsredovisningar\/\d{4}\/\d{2}_\d+\.zip$/.test(url.pathname);
  if((!api&&!bulk)||url.search||url.hash||url.username||url.password)throw Error('invalid_document_url');
- const response=await fetch(url,{headers:api?{Authorization:'Bearer '+token}:{},redirect:'error',signal:AbortSignal.timeout(25000)});
+ const response=await fetch(url,{headers:api?{Authorization:'Bearer '+token}:{},redirect:'error',signal:AbortSignal.timeout(bulk?120000:25000)});
  if(!response.ok)throw Error('document_http_'+response.status);
- const limit=8*1024*1024;
+ const limit=(bulk?256:8)*1024*1024;
  const reader=response.body.getReader();const chunks=[];let size=0;
  try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>limit)throw Error('document_too_large');chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}
  const bytes=Buffer.concat(chunks);
