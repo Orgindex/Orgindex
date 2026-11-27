@@ -1,8 +1,10 @@
 const {createHash}=require('node:crypto');
 async function downloadDocument(sourceUrl, token){
  const url=new URL(sourceUrl);
- if(url.origin!=='https://gw.api.bolagsverket.se'||!/^\/vardefulla-datamangder\/v1\/dokument\/[^/]+$/.test(url.pathname)||url.search||url.hash||url.username||url.password)throw Error('invalid_document_url');
- const response=await fetch(url,{headers:{Authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(25000)});
+ const api=url.origin==='https://gw.api.bolagsverket.se'&&/^\/vardefulla-datamangder\/v1\/dokument\/[^/]+$/.test(url.pathname);
+ const bulk=url.origin==='https://vardefulla-datamangder.bolagsverket.se'&&/^\/arsredovisningar-bulkfiler\/arsredovisningar\/\d{4}\/\d{2}_\d+\.zip$/.test(url.pathname);
+ if((!api&&!bulk)||url.search||url.hash||url.username||url.password)throw Error('invalid_document_url');
+ const response=await fetch(url,{headers:api?{Authorization:'Bearer '+token}:{},redirect:'error',signal:AbortSignal.timeout(25000)});
  if(!response.ok)throw Error('document_http_'+response.status);
  const limit=8*1024*1024;
  const reader=response.body.getReader();const chunks=[];let size=0;
