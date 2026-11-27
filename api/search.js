@@ -21,17 +21,10 @@ module.exports = async (req,res) => {
     let result=await p.query(query,[numeric?digits:q,industryFilter,limit]);
     let suggested=false;
     if(!numeric && !industryFilter && q.length>=4 && result.rows.length===0){
-      result=await p.query("SELECT orgnr,name,source FROM orgindex_companies WHERE lower(name) %> lower($1) AND orgnr ~ '^[0-9]{2}[2-9][0-9]{7}
-    return res.json({companies:result.rows.map(c=>({...c,industry:c.orgnr==='5560094178'?'Vitvaruindustri – hushållsapparater':null})),suggested,coverage:'Företagsregister – namn och organisationsnummer'});
-  } catch(e) {
-    console.error('Company search failed',e.code||e.name);
-    return res.status(503).json({error:'Namnsökningen är tillfälligt otillgänglig'});
-  }
-};
- ORDER BY word_similarity(lower($1),lower(name)) DESC,length(name),name,orgnr LIMIT $2",[q,limit]);
+      result=await p.query("SELECT orgnr,name,source FROM orgindex_companies WHERE lower(name) %> lower($1) AND orgnr ~ '^[0-9]{2}[2-9][0-9]{7}$' ORDER BY word_similarity(lower($1),lower(name)) DESC,length(name),name,orgnr LIMIT $2",[q,limit]);
       suggested=result.rows.length>0;
     }
-    return res.json({companies:result.rows.map(c=>({...c,industry:c.orgnr==='5560094178'?'Vitvaruindustri – hushållsapparater':null})),suggested:false,coverage:'Företagsregister – namn och organisationsnummer'});
+    return res.json({companies:result.rows.map(c=>({...c,industry:c.orgnr==='5560094178'?'Vitvaruindustri – hushållsapparater':null})),suggested,coverage:'Företagsregister – namn och organisationsnummer'});
   } catch(e) {
     console.error('Company search failed',e.code||e.name);
     return res.status(503).json({error:'Namnsökningen är tillfälligt otillgänglig'});
