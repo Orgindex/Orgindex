@@ -128,8 +128,9 @@ const verifiedCompanyFacts = {
  }
 };
 const facts = verifiedCompanyFacts[d.orgnr];
-if (facts?.activity) {
- document.getElementById('company-activity-text').textContent = facts.activity;
+const activity = facts?.activity || d.businessDescription;
+if (activity) {
+ document.getElementById('company-activity-text').textContent = activity;
  document.getElementById('company-activity').hidden = false;
 }
 const website = facts?.website;
