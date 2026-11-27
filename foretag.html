@@ -7,7 +7,7 @@
  note.append(source);
 
  const labelForPeriod = (period) => period.length === 4 ? period : period.slice(0, 7);
- const formatAmount = (amount) => amount.toLocaleString('sv-SE', {maximumFractionDigits: 6});
+ const formatAmount = (amount) => amount.toLocaleString('sv-SE', {maximumFractionDigits: 2});
  function draw(id, column, label) {
   const values = rows.filter(row => Number.isFinite(row[column]));
   if (!values.length) return;
@@ -21,7 +21,7 @@
    if (content !== undefined) element.textContent = content;
    return element;
   };
-  const svg = svgElement('svg', {viewBox: '0 0 640 245', role: 'img', 'aria-label': label + ', miljoner kronor'});
+  const svg = svgElement('svg', {viewBox: '0 0 640 245', role: 'img', 'aria-label': label + ', kronor'});
   const amounts = values.map(row => row[column]);
   const min = Math.min(0, ...amounts);
   const max = Math.max(0, ...amounts);
@@ -30,14 +30,14 @@
   const low = Math.floor(min / tickSize) * tickSize;
   const high = Math.max(low + tickSize, Math.ceil(max / tickSize) * tickSize);
   const y = value => 24 + (high - value) / (high - low) * 168;
-  const chartLeft = 72;
-  const chartWidth = 554;
+  const chartLeft = 120;
+  const chartWidth = 626 - chartLeft;
 
   for (let i = 0; i <= Math.round((high - low) / tickSize); i++) {
    const tick = low + i * tickSize;
    svg.append(
     svgElement('line', {x1: chartLeft, x2: 626, y1: y(tick), y2: y(tick), stroke: '#e1e8ef'}),
-    svgElement('text', {x: 66, y: y(tick) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#52677e'}, formatAmount(tick))
+    svgElement('text', {x: chartLeft - 6, y: y(tick) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#52677e'}, formatAmount(tick))
    );
   }
   svg.append(svgElement('line', {x1: chartLeft, x2: 626, y1: y(0), y2: y(0), stroke: '#8094a7'}));
@@ -51,12 +51,18 @@
     height: Math.max(1, Math.abs(y(amount) - y(0))), rx: 3,
     fill: amount < 0 ? '#b64a4a' : '#28649a'
    });
-   bar.append(svgElement('title', {}, row[0] + ' · ' + formatAmount(amount) + ' Mkr'));
+   bar.append(svgElement('title', {}, row[0] + ' · ' + formatAmount(amount) + ' kr'));
    svg.append(bar, svgElement('text', {
     x, y: 216, 'text-anchor': 'middle', 'font-size': 11, fill: '#173e69'
    }, labelForPeriod(row[0])));
   });
-  svg.append(svgElement('text', {x: 2, y: 12, 'font-size': 10, fill: '#52677e'}, 'Mkr'));
+  svg.append(svgElement('text', {x: 2, y: 12, 'font-size': 10, fill: '#52677e'}, 'kr'));
+  if (values.length === 1) {
+   const amount = document.createElement('p');
+   amount.className = 'value';
+   amount.textContent = formatAmount(values[0][column]) + ' kr';
+   box.append(amount);
+  }
   box.append(svg);
 
   const details = document.createElement('details');
@@ -65,7 +71,7 @@
   details.append(summary);
   const table = document.createElement('table');
   const heading = table.createTHead().insertRow();
-  for (const label of ['Periodslut', 'Mkr']) {
+  for (const label of ['Periodslut', 'kr']) {
    const cell = document.createElement('th');
    cell.scope = 'col';
    cell.textContent = label;
@@ -75,7 +81,7 @@
   for (const row of values) {
    const entry = body.insertRow();
    entry.insertCell().textContent = row[0];
-   entry.insertCell().textContent = formatAmount(row[column]);
+   entry.insertCell().textContent = formatAmount(row[column]) + ' kr';
   }
   details.append(table);
   box.append(details);
@@ -84,12 +90,12 @@
  draw('profit-chart', 2, 'Årets resultat efter skatt');
 }
 (async()=>{const s=document.getElementById('status');const n=new URLSearchParams(location.search).get('orgnr')||'';try{if(!/^\d{6}-?\d{4}$/.test(n))throw Error('Ogiltigt organisationsnummer');const r=await fetch('/api/company?orgnr='+encodeURIComponent(n));const d=await r.json();if(!r.ok)throw Error(d.error||'Kunde inte hämta företaget');const nr=d.orgnr.slice(0,6)+'-'+d.orgnr.slice(6);document.getElementById('name').textContent=d.name;document.getElementById('number').textContent='Organisationsnummer: '+nr;document.getElementById('orgnr').textContent=nr;const address=[d.coAddress,d.address,[d.postalCode,d.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');document.getElementById('postal-address').textContent=address?'Postadress: '+address:'Postadress ännu inte tillgänglig.';const accounts = Array.isArray(d.annualAccounts) ? d.annualAccounts : [];
-const inMillions = value => value === null ? null : Number(value) / 1000000;
+const inKronor = value => value === null ? null : Number(value);
 if (accounts.length) {
- const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.netProfit)]).reverse();
+ const rows = accounts.map(account => [account.periodEnd, inKronor(account.netRevenue), inKronor(account.netProfit)]).reverse();
  showFinancial(rows, 'Bolagsverket', 'https://bolagsverket.se/apierochoppnadata/hamtaforetagsinformation/nedladdningsbarafiler.2517.html');
 } else if (d.orgnr === '5560094178') {
- showFinancial(financialRows.map(([year, revenue, profit]) => [String(year), revenue, profit]),
+ showFinancial(financialRows.map(([year, revenue, profit]) => [String(year), revenue * 1000000, profit * 1000000]),
   'Electrolux årsredovisningar', 'https://www.electroluxgroup.com/en/annual-reports-27641/');
 }
 if(d.orgnr==='5560094178'){const p=document.getElementById('postal-address');p.textContent='Postadress: AB Electrolux, 105 45 Stockholm';const section=p.parentElement;const next=p.nextElementSibling;if(next)next.remove();const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 16px;margin-top:8px';for(const [label,value,href] of [['Besöksadress','S:t Göransgatan 143 K, Stockholm',''],['Växel','08-738 60 00','tel:+4687386000'],['Webbplats','electroluxgroup.com','https://www.electroluxgroup.com/'],['Godsleverans','Sankt Göransgatan 143 A, 112 13 Stockholm','']]){const item=document.createElement('div'),l=document.createElement('div'),v=document.createElement(href?'a':'div');l.className='label';l.textContent=label;v.textContent=value;if(href)v.href=href;item.append(l,v);grid.append(item);}section.append(grid);const source=document.createElement('a');source.href='https://www.electroluxgroup.com/en/electrolux-group-headquarters-17256/';source.textContent='Källa: Electrolux officiella kontaktuppgifter';source.style.cssText='display:block;font-size:12px;margin-top:8px';section.append(source);}document.title=d.name+' – Orgindex';s.hidden=true;document.getElementById('profile').hidden=false}catch(e){s.textContent=e.message}})();</script></body></html>
