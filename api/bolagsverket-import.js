@@ -39,7 +39,15 @@ module.exports=async(req,res)=>{
  for(const doc of docs){const r=await client.query('INSERT INTO orgindex_bolagsverket_file_queue(source_url) VALUES($1) ON CONFLICT DO NOTHING',[base+'/dokument/'+encodeURIComponent(doc)]);queued+=r.rowCount;}
  await client.query('INSERT INTO orgindex_bv_discovery(orgnr) VALUES($1) ON CONFLICT DO NOTHING',[orgnr]);
  await client.query('COMMIT');
- return res.json({queued,discovered:docs.size});
+ const firstUrl=base+'/dokument/'+encodeURIComponent(docs.values().next().value);
+ try {
+ const file=await downloadDocument(firstUrl,access_token);
+ const saved=await client.query('INSERT INTO orgindex_bv_raw_documents(source_url,zip_bytes,sha256) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[firstUrl,file.bytes,file.sha256]);
+ return res.json({queued,discovered:docs.size,downloaded:saved.rowCount,bytes:file.size});
+ } catch(e) {
+ console.error('Bolagsverket first download failed',/^(document_http_\d+|document_too_large|not_zip)$/.test(e.message)?e.message:'download_error');
+ return res.status(502).json({queued,discovered:docs.size,downloaded:0,error:'first_download_failed'});
+ }
  }catch(e){if(client)await client.query('ROLLBACK').catch(()=>{});const msg=/^(token_http_|list_http_|document_http_)\d+$|^missing_token$/.test(e.message)?e.message:'worker_error';console.error('Bolagsverket discovery',msg);return res.status(502).json({error:msg});}
  finally{if(client)client.release();await pool.end().catch(()=>{});}
 };
