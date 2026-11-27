@@ -1,8 +1,14 @@
 {
+  "functions": {
+    "api/bolagsverket-import.py": {
+      "maxDuration": 300,
+      "includeFiles": "{scripts/*.py,data/bv-manifests/*.urls}"
+    }
+  },
   "crons": [
     {
       "path": "/api/bolagsverket-import",
-      "schedule": "0 3 * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
