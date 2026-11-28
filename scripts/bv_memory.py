@@ -21,7 +21,7 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-YEARS = (2026, 2025)
+YEARS = (2026, 2025, 2024, 2023, 2022, 2021, 2020)
 ORIGIN = "https://vardefulla-datamangder.bolagsverket.se"
 URL_PATTERN = re.compile(re.escape(ORIGIN) + r"/arsredovisningar-bulkfiler/arsredovisningar/(202[0-6])/(\d{2})_(\d+)\.zip\Z")
 MAX_BYTES = 256 * 1024 * 1024
