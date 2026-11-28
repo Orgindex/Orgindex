@@ -32,7 +32,7 @@ MAX_CONCURRENT_IMPORTS = 3
 MAX_DATABASE_REQUEST_BYTES = 60_000_000
 CLAIM_LOCK = 18472640
 COMMIT_LOCK = 18472641
-PARSER_VERSION = "memory-2026-11-28-v5"
+PARSER_VERSION = "memory-2026-11-28-v6"
 
 
 class ImportFailure(RuntimeError):
@@ -151,6 +151,7 @@ class Database:
         The connection context commits all statements together, or rolls back
         everything on an error, and always closes the connection.
         """
+        import certifi
         import psycopg
         from psycopg.rows import dict_row
 
@@ -158,7 +159,9 @@ class Database:
             with psycopg.connect(
                 self.dsn, cursor_factory=psycopg.RawCursor, row_factory=dict_row,
                 connect_timeout=10, prepare_threshold=None,
-                sslmode="verify-full", sslrootcert="system",
+                # The binary libpq wheel has its own OpenSSL defaults, which
+                # need not point to the runtime's installed trust store.
+                sslmode="verify-full", sslrootcert=certifi.where(),
                 application_name="orgindex-bv-import",
             ) as connection:
                 connection.isolation_level = psycopg.IsolationLevel.READ_COMMITTED
@@ -179,6 +182,22 @@ class Database:
             # Log only a bounded SQLSTATE, never the connection/error text.
             code = getattr(exc, "sqlstate", None)
             if not isinstance(code, str) or not re.fullmatch(r"[A-Z0-9]{5}", code):
+                # Fixed categories diagnose connection setup without returning
+                # any driver text, DSN, host, credential, or source document.
+                message = str(exc).lower()
+                for marker, category in (
+                    ("invalid connection option", "configuration_invalid"),
+                    ("root certificate", "tls_ca_unavailable"),
+                    ("certificate verify failed", "tls_verification_failed"),
+                    ("server does not support ssl", "tls_unavailable"),
+                    ("timeout expired", "connection_timeout"),
+                    ("could not translate host name", "dns_failed"),
+                    ("password authentication failed", "authentication_failed"),
+                    ("connection refused", "connection_refused"),
+                    ("network is unreachable", "network_unreachable"),
+                ):
+                    if marker in message:
+                        raise ImportFailure("database_postgres_" + category) from None
                 raise ImportFailure("database_postgres_connection_failed") from None
             raise ImportFailure("database_postgres_" + code) from None
 
