@@ -151,7 +151,7 @@ class DatabasePayloadTests(unittest.TestCase):
             self.assertEqual(Database(self.dsn)._request(payload), {"rows": []})
         self.assertEqual(opener.open.call_args.args[0].data, body)
 
-    def test_oversized_import_sends_only_failure_update_and_never_completion(self):
+    def test_failed_native_import_sends_only_failure_update_and_never_completion(self):
         job = {"source_url": "https://vardefulla-datamangder.bolagsverket.se/"
                              "arsredovisningar-bulkfiler/arsredovisningar/2026/19_1.zip",
                "attempts": 11}
@@ -166,16 +166,19 @@ class DatabasePayloadTests(unittest.TestCase):
              patch("scripts.bv_memory.download", return_value=(buffer, 11, "a" * 64)), \
              patch("scripts.bv_parse.parse_archive", return_value=parsed), \
              patch("scripts.bv_memory.MAX_DATABASE_REQUEST_BYTES", 16384), \
+             patch.object(Database, "postgres_locked_transaction", side_effect=ImportFailure(
+                 "database_postgres_connection_failed")) as native, \
              patch("scripts.bv_memory.urllib.request.build_opener", return_value=opener):
-            with self.assertRaisesRegex(ImportFailure, "database_request_too_large"):
+            with self.assertRaisesRegex(ImportFailure, "database_postgres_connection_failed"):
                 import_one(Database(self.dsn))
+        native.assert_called_once()
         self.assertTrue(buffer.closed)
         self.assertEqual(opener.open.call_count, 1)
         sent = json.loads(opener.open.call_args.args[0].data)
         self.assertIn("SET status='failed'", sent["query"])
         self.assertNotIn("completed", sent["query"])
         self.assertNotIn("orgindex_annual_accounts", sent["query"])
-        self.assertEqual(sent["params"], [job["source_url"], job["attempts"], "database_request_too_large"])
+        self.assertEqual(sent["params"], [job["source_url"], job["attempts"], "database_postgres_connection_failed"])
 
 
 @unittest.skipUnless(os.environ.get("BV_IMPORT_TEST_DSN"), "isolated Neon branch required")
