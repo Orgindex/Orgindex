@@ -1,6 +1,7 @@
-<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Företagsprofil – Orgindex</title><style>*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#173e69;font:16px system-ui,sans-serif}header{background:white;padding:22px max(5%,20px);border-bottom:1px solid #dce6f0}a{color:#1d4e80}header a{font-size:28px;font-weight:800;text-decoration:none}main{max-width:1000px;margin:auto;padding:28px 20px}.card{background:white;border:1px solid #e1e8ef;border-radius:14px;padding:24px;margin:18px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.grid .card{margin:0}h1{font-size:clamp(28px,5vw,45px);margin:12px 0}h2{font-size:23px}p{color:#52677e;line-height:1.6}.label{font-size:13px;color:#52677e}.value{font-size:23px;font-weight:700}.tag{display:inline-block;background:#eaf2fa;border-radius:20px;padding:6px 12px;font-size:13px}.empty{min-height:150px;display:grid;place-items:center;border:1px dashed #ccd9e7;border-radius:10px;padding:20px;text-align:center;color:#52677e}footer{text-align:center;color:#52677e;padding:24px}.chartbox{display:block;min-height:0;border:0;padding:0}.chartbox svg{width:100%;height:auto;display:block}.chartbox table{width:100%;border-collapse:collapse;font-size:13px}.chartbox td,.chartbox th{text-align:right;padding:5px;border-bottom:1px solid #e1e8ef}.chartbox td:first-child,.chartbox th:first-child{text-align:left}.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}html.embedded body{background:transparent;font-size:14px}html.embedded header,html.embedded footer,html.embedded main>a{display:none}html.embedded main{padding:0;max-width:none}html.embedded .card{padding:12px;margin:6px 0;border-radius:10px}html.embedded .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}html.embedded .grid .card{margin:0}html.embedded h1{font-size:24px;margin:4px 0}html.embedded h2{font-size:17px;margin:10px 0 5px}html.embedded h3{font-size:15px;margin:0 0 4px}html.embedded p{margin:4px 0;line-height:1.35}html.embedded .value{font-size:16px}html.embedded .chartbox svg{height:auto;max-width:100%}html.embedded #profile>section:first-child,html.embedded #profile>h2:first-of-type,html.embedded #profile>div.grid:first-of-type{display:none}@media(max-width:560px){html.embedded .grid{grid-template-columns:1fr}html.embedded .chartbox svg{height:auto}}.financial-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:18px 0}.financial-header .card{margin:0}.financial-header h2{margin-top:0}.financial-header .latest-financial{min-width:min(100%,320px)}.latest-financial h3{margin:0 0 12px}.latest-financial dl{display:flex;gap:24px;flex-wrap:wrap;margin:0}.latest-financial dd{margin:2px 0 0}.latest-financial .value{white-space:nowrap}@media(max-width:560px){.financial-header{flex-direction:column}.financial-header .latest-financial{width:100%}}.industry-location dl{display:grid;gap:10px;margin:0}.industry-location .company-activity{grid-column:1/-1}.industry-location .company-activity dd{font-weight:400}.industry-location dd{margin:2px 0 0;font-weight:700}html.embedded #profile>div.grid:first-of-type{display:block}html.embedded #profile>div.grid:first-of-type>.card:not(.industry-location){display:none}html.embedded .industry-location dl{grid-template-columns:repeat(2,minmax(0,1fr))}</style></head><body><header><a href="/">Orgindex</a></header><main><a href="/">← Till företagssökningen</a><p id="status" role="status">Hämtar företagsuppgifter…</p><div id="profile" hidden><section class="card"><span class="tag">Företagsinformation · SCB</span><h1 id="name"></h1><p id="number"></p></section><h2>Företagsfakta</h2><div class="grid"><article class="card"><div class="label">Organisationsnummer</div><div class="value" id="orgnr"></div></article><article class="card"><div class="label">Datakälla</div><div class="value">SCB</div></article><article class="card industry-location">
+<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Företagsprofil – Orgindex</title><style>*{box-sizing:border-box}body{margin:0;background:#f4f7fb;color:#173e69;font:16px system-ui,sans-serif}header{background:white;padding:22px max(5%,20px);border-bottom:1px solid #dce6f0}a{color:#1d4e80}header a{font-size:28px;font-weight:800;text-decoration:none}main{max-width:1000px;margin:auto;padding:28px 20px}.card{background:white;border:1px solid #e1e8ef;border-radius:14px;padding:24px;margin:18px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.grid .card{margin:0}h1{font-size:clamp(28px,5vw,45px);margin:12px 0}h2{font-size:23px}p{color:#52677e;line-height:1.6}.label{font-size:13px;color:#52677e}.value{font-size:23px;font-weight:700}.tag{display:inline-block;background:#eaf2fa;border-radius:20px;padding:6px 12px;font-size:13px}.empty{min-height:150px;display:grid;place-items:center;border:1px dashed #ccd9e7;border-radius:10px;padding:20px;text-align:center;color:#52677e}footer{text-align:center;color:#52677e;padding:24px}.chartbox{display:block;min-height:0;border:0;padding:0}.chartbox svg{width:100%;height:auto;display:block}.chartbox table{width:100%;border-collapse:collapse;font-size:13px}.chartbox td,.chartbox th{text-align:right;padding:5px;border-bottom:1px solid #e1e8ef}.chartbox td:first-child,.chartbox th:first-child{text-align:left}.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}html.embedded body{background:transparent;font-size:14px}html.embedded header,html.embedded footer,html.embedded main>a{display:none}html.embedded main{padding:0;max-width:none}html.embedded .card{padding:12px;margin:6px 0;border-radius:10px}html.embedded .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}html.embedded .grid .card{margin:0}html.embedded h1{font-size:24px;margin:4px 0}html.embedded h2{font-size:17px;margin:10px 0 5px}html.embedded h3{font-size:15px;margin:0 0 4px}html.embedded p{margin:4px 0;line-height:1.35}html.embedded .value{font-size:16px}html.embedded .chartbox svg{height:auto;max-width:100%}html.embedded #profile>section:first-child,html.embedded #profile>h2:first-of-type,html.embedded #profile>div.grid:first-of-type{display:none}@media(max-width:560px){html.embedded .grid{grid-template-columns:1fr}html.embedded .chartbox svg{height:auto}}.financial-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:18px 0}.financial-header .card{margin:0}.financial-header h2{margin-top:0}.financial-header .latest-financial{min-width:min(100%,320px)}.latest-financial h3{margin:0 0 12px}.latest-financial dl{display:flex;gap:24px;flex-wrap:wrap;margin:0}.latest-financial dd{margin:2px 0 0}.latest-financial .value{white-space:nowrap}@media(max-width:560px){.financial-header{flex-direction:column}.financial-header .latest-financial{width:100%}}.industry-location dl{display:grid;gap:10px;margin:0}.industry-location .company-activity{grid-column:1/-1}.industry-location .company-activity dd{font-weight:400}.industry-location dd{margin:2px 0 0;font-weight:700}html.embedded #profile>div.grid:first-of-type{display:block}html.embedded #profile>div.grid:first-of-type>.card:not(.industry-location){display:none}html.embedded .industry-location dl{grid-template-columns:repeat(2,minmax(0,1fr))}.industry-location .company-employees{grid-column:1/-1}.company-employees .label{font-size:14px}.employee-value{display:block;font-size:22px;line-height:1.3}.employee-value[data-missing="true"]{font-size:16px;font-weight:400}.employee-note{display:block;margin-top:4px;color:#52677e;font-size:13px;line-height:1.4;font-weight:400}</style></head><body><header><a href="/">Orgindex</a></header><main><a href="/">← Till företagssökningen</a><p id="status" role="status">Hämtar företagsuppgifter…</p><div id="profile" hidden><section class="card"><span class="tag">Företagsinformation · SCB</span><h1 id="name"></h1><p id="number"></p></section><h2>Företagsfakta</h2><div class="grid"><article class="card"><div class="label">Organisationsnummer</div><div class="value" id="orgnr"></div></article><article class="card"><div class="label">Datakälla</div><div class="value">SCB</div></article><article class="card industry-location">
  <dl><div><dt class="label">Bransch</dt><dd id="industry-name">Uppgift saknas</dd></div>
  <div><dt class="label">Ort</dt><dd id="company-city">Uppgift saknas</dd></div>
+ <div class="company-employees"><dt class="label">Antal anställda</dt><dd><span class="employee-value" id="company-employees" data-missing="true">Uppgift saknas</span><span class="employee-note" id="company-employees-note"></span></dd></div>
  <div id="company-registration" hidden><dt class="label">Registrerat</dt><dd id="company-registration-date"></dd></div>
  <div class="company-activity" id="company-activity" hidden><dt class="label">Verksamhet</dt><dd id="company-activity-text"></dd></div>
  <div id="company-website" hidden><dt class="label">Webbplats</dt><dd><a id="company-website-link"></a></dd></div></dl>
@@ -31,9 +32,11 @@
  note.append(source);
 
  const labelForPeriod = (period) => period.length === 4 ? period : period.slice(0, 7);
- const formatAmount = (amount) => amount.toLocaleString('sv-SE', {maximumFractionDigits: 6});
  function draw(id, column, label) {
-  const values = rows.filter(row => Number.isFinite(row[column]));
+  const unit = column === 2 ? 'kr' : 'Mkr';
+  const formatAmount = amount => amount.toLocaleString('sv-SE', {maximumFractionDigits: column === 2 ? 2 : 6});
+  const values = rows.filter(row => Number.isFinite(row[column])).map(row =>
+   column === 2 ? [row[0], row[1], row[2] * 1000000] : row);
   if (!values.length) return;
   const box = document.getElementById(id);
   box.className = 'chartbox';
@@ -45,7 +48,7 @@
    if (content !== undefined) element.textContent = content;
    return element;
   };
-  const svg = svgElement('svg', {viewBox: '0 0 640 245', role: 'img', 'aria-label': label + ', miljoner kronor'});
+  const svg = svgElement('svg', {viewBox: '0 0 640 245', role: 'img', 'aria-label': label + (column === 2 ? ', kronor' : ', miljoner kronor')});
   const amounts = values.map(row => row[column]);
   const min = Math.min(0, ...amounts);
   const max = Math.max(0, ...amounts);
@@ -54,14 +57,14 @@
   const low = Math.floor(min / tickSize) * tickSize;
   const high = Math.max(low + tickSize, Math.ceil(max / tickSize) * tickSize);
   const y = value => 24 + (high - value) / (high - low) * 168;
-  const chartLeft = 72;
-  const chartWidth = 554;
+  const chartLeft = Math.max(72, Math.max(formatAmount(low).length, formatAmount(high).length) * 7 + 16);
+  const chartWidth = 626 - chartLeft;
 
   for (let i = 0; i <= Math.round((high - low) / tickSize); i++) {
    const tick = low + i * tickSize;
    svg.append(
     svgElement('line', {x1: chartLeft, x2: 626, y1: y(tick), y2: y(tick), stroke: '#e1e8ef'}),
-    svgElement('text', {x: 66, y: y(tick) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#52677e'}, formatAmount(tick))
+    svgElement('text', {x: chartLeft - 6, y: y(tick) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#52677e'}, formatAmount(tick))
    );
   }
   svg.append(svgElement('line', {x1: chartLeft, x2: 626, y1: y(0), y2: y(0), stroke: '#8094a7'}));
@@ -75,12 +78,12 @@
     height: Math.max(1, Math.abs(y(amount) - y(0))), rx: 3,
     fill: amount < 0 ? '#b64a4a' : '#28649a'
    });
-   bar.append(svgElement('title', {}, row[0] + ' · ' + formatAmount(amount) + ' Mkr'));
+   bar.append(svgElement('title', {}, row[0] + ' · ' + formatAmount(amount) + ' ' + unit));
    svg.append(bar, svgElement('text', {
     x, y: 216, 'text-anchor': 'middle', 'font-size': 11, fill: '#173e69'
    }, labelForPeriod(row[0])));
   });
-  svg.append(svgElement('text', {x: 2, y: 12, 'font-size': 10, fill: '#52677e'}, 'Mkr'));
+  svg.append(svgElement('text', {x: 2, y: 12, 'font-size': 10, fill: '#52677e'}, unit));
   box.append(svg);
 
   const details = document.createElement('details');
@@ -89,7 +92,7 @@
   details.append(summary);
   const table = document.createElement('table');
   const heading = table.createTHead().insertRow();
-  for (const label of ['Periodslut', 'Mkr']) {
+  for (const label of ['Periodslut', unit]) {
    const cell = document.createElement('th');
    cell.scope = 'col';
    cell.textContent = label;
@@ -114,6 +117,27 @@ const displayCity = city && city === city.toLocaleUpperCase('sv-SE')
  ? city.toLocaleLowerCase('sv-SE').replace(/(^|[ -])\p{L}/gu, letter => letter.toLocaleUpperCase('sv-SE'))
  : city;
 document.getElementById('company-city').textContent = displayCity || 'Uppgift saknas';
+const employment = d.latestEmployees;
+const employeeValue = document.getElementById('company-employees');
+const employeeNote = document.getElementById('company-employees-note');
+const countText = typeof employment?.count === 'string' ? employment.count.trim() : '';
+const count = /^\d+(?:\.\d+)?$/.test(countText) ? Number(countText) : NaN;
+const periodEnd = typeof employment?.periodEnd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(employment.periodEnd)
+ ? employment.periodEnd : '';
+const periodStart = typeof employment?.periodStart === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(employment.periodStart)
+ ? employment.periodStart : '';
+const year = periodEnd.slice(0, 4);
+if (d.employeesStatus === 'unavailable') {
+ employeeValue.textContent = 'Uppgiften kunde inte hämtas';
+} else if (Number.isFinite(count) && count >= 0) {
+ employeeValue.textContent = count.toLocaleString('sv-SE', {maximumFractionDigits: 20});
+ employeeValue.dataset.missing = 'false';
+ employeeNote.textContent = ['Medelantal', year ? 'bokslut ' + year : '', employment.source || ''].filter(Boolean).join(' · ');
+} else {
+ employeeValue.textContent = employment ? 'Uppgift saknas i senaste bokslutet' : 'Uppgift saknas';
+ employeeNote.textContent = year ? 'Bokslut ' + year : '';
+}
+if (periodStart && periodEnd) employeeNote.title = 'Räkenskapsperiod ' + periodStart + '–' + periodEnd;
 if (typeof d.registrationDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.registrationDate)) {
  const date = new Date(d.registrationDate + 'T00:00:00Z');
  document.getElementById('company-registration-date').textContent =
