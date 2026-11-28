@@ -228,13 +228,13 @@ CLAIM_SQL = """WITH manifest AS MATERIALIZED (
     SELECT max(substring(source_url from '/arsredovisningar/([0-9]{4})/')) AS year
     FROM public.orgindex_bolagsverket_file_queue
     WHERE source_url IN (SELECT source_url FROM manifest)
-      AND ((status IN ('pending','failed') AND next_attempt_at <= now())
+      AND ((status IN ('pending','failed') AND (next_attempt_at IS NULL OR next_attempt_at <= now()))
            OR (status='running' AND lease_until < now()))
 ), candidate AS (
     SELECT q.source_url FROM public.orgindex_bolagsverket_file_queue q, current_year y
     WHERE q.source_url IN (SELECT source_url FROM manifest)
       AND substring(q.source_url from '/arsredovisningar/([0-9]{4})/') = y.year
-      AND ((q.status IN ('pending','failed') AND q.next_attempt_at <= now())
+      AND ((q.status IN ('pending','failed') AND (q.next_attempt_at IS NULL OR q.next_attempt_at <= now()))
            OR (q.status='running' AND q.lease_until < now()))
       AND (SELECT count(*) FROM public.orgindex_bolagsverket_file_queue live
            WHERE live.status='running' AND live.lease_until >= now()
