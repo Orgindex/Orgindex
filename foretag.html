@@ -71,7 +71,7 @@
   <div><dt>Hemsida</dt><dd id="company-contact-website"><span class="contact-missing">Uppgift saknas</span></dd></div>
  </dl>
  <p class="contact-source" id="company-contact-source" hidden></p>
-</section></div></main><footer>© Orgindex.se</footer><script>if(new URLSearchParams(location.search).get('embed')==='1'){document.documentElement.classList.add('embedded');const report=()=>parent.postMessage({type:'orgindex-profile-size',height:document.querySelector('main').getBoundingClientRect().height},location.origin);new ResizeObserver(report).observe(document.body);addEventListener('load',report);}const financialRows=[[2016,33954,4384],[2017,35168,6536],[2018,38911,5488],[2019,40594,3357],[2020,40621,6464],[2021,43805,4110],[2022,42063,-236],[2023,40302,-3726],[2024,40272,1053],[2025,39878,1599]];function showFinancial(rows, sourceLabel, sourceUrl, latestAccount = null) {
+</section></div></main><footer>© Orgindex.se</footer><script>if(new URLSearchParams(location.search).get('embed')==='1'){document.documentElement.classList.add('embedded');const report=()=>parent.postMessage({type:'orgindex-profile-size',height:document.querySelector('main').getBoundingClientRect().height},location.origin);new ResizeObserver(report).observe(document.body);addEventListener('load',report);}const financialRows=[[2016,33954,4384],[2017,35168,6536],[2018,38911,5488],[2019,40594,3357],[2020,40621,6464],[2021,43805,4110],[2022,42063,-236],[2023,40302,-3726],[2024,40272,1053],[2025,39878,1599]];function showFinancial(rows, sourceLabel, sourceUrl, latestAccount = null, resultLabel = 'Resultat efter finansnetto') {
  const [period, revenue, profit] = rows[rows.length - 1];
  document.getElementById('latest-financial-year').textContent = 'Senaste bokslut ' + period.slice(0, 7);
  const summary = latestAccount || {
@@ -106,7 +106,6 @@
  note.append(source);
 
  const labelForPeriod = period => period.length === 4 ? period : period.slice(0, 7);
- const resultLabel = 'Årets resultat';
  const series = [
   {column: 1, label: 'Nettoomsättning', color: '#28649a'},
   {column: 2, label: resultLabel, color: '#248b88'}
@@ -430,10 +429,10 @@ const inMillions = value => {
  return Number.isFinite(amount) ? amount / 1000000 : null;
 };
 if (accounts.length) {
- const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.netProfit)]).reverse();
+ const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.profitAfterFinancialItems)]).reverse();
  showFinancial(rows, 'Bolagsverket', 'https://bolagsverket.se/apierochoppnadata/hamtaforetagsinformation/nedladdningsbarafiler.2517.html', accounts[0]);
 } else if (d.orgnr === '5560094178') {
  showFinancial(financialRows.map(([year, revenue, profit]) => [String(year), revenue, profit]),
-  'Electrolux årsredovisningar', 'https://www.electroluxgroup.com/en/annual-reports-27641/');
+  'Electrolux årsredovisningar', 'https://www.electroluxgroup.com/en/annual-reports-27641/', null, 'Årets resultat');
 }
 document.title=d.name+' – Orgindex';s.hidden=true;document.getElementById('profile').hidden=false}catch(e){s.textContent=e.message}})();</script></body></html>
