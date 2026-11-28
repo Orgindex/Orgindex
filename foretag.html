@@ -106,11 +106,10 @@
  note.append(source);
 
  const labelForPeriod = period => period.length === 4 ? period : period.slice(0, 7);
- const resultColumn = rows.some(row => Number.isFinite(row[3])) ? 3 : 2;
- const resultLabel = resultColumn === 3 ? 'Resultat efter finansnetto' : 'Årets resultat efter skatt';
+ const resultLabel = 'Årets resultat';
  const series = [
   {column: 1, label: 'Nettoomsättning', color: '#28649a'},
-  {column: resultColumn, label: resultLabel, color: '#248b88'}
+  {column: 2, label: resultLabel, color: '#248b88'}
  ];
  const values = rows.slice().reverse();
  const amounts = values.flatMap(row => series
@@ -431,7 +430,7 @@ const inMillions = value => {
  return Number.isFinite(amount) ? amount / 1000000 : null;
 };
 if (accounts.length) {
- const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.netProfit), inMillions(account.profitAfterFinancialItems)]).reverse();
+ const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.netProfit)]).reverse();
  showFinancial(rows, 'Bolagsverket', 'https://bolagsverket.se/apierochoppnadata/hamtaforetagsinformation/nedladdningsbarafiler.2517.html', accounts[0]);
 } else if (d.orgnr === '5560094178') {
  showFinancial(financialRows.map(([year, revenue, profit]) => [String(year), revenue, profit]),
