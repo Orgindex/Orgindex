@@ -2,7 +2,19 @@
 .financial-header{display:block;margin:18px 0}
 .financial-header .card{margin:0}
 .financial-header h2{margin-top:0}
-.financial-header #latest-financial{min-width:0;width:100%;max-width:560px;margin-top:10px;padding:12px 16px}
+.financial-header #latest-financial{min-width:0;width:100%;margin-top:16px;padding:16px 20px}
+.financial-chart h3{margin:0 0 6px;font-size:18px}
+.financial-chart .chart-unit{font-size:12px;line-height:1.4;margin:0 0 8px}
+.financial-chart .chart-scroll,.financial-chart .chart-table-scroll{max-width:100%;overflow-x:auto}
+.financial-chart .chart-scroll svg{max-height:320px}
+.financial-chart .chart-scroll:focus-visible{outline:2px solid #28649a;outline-offset:3px}
+.financial-chart .chart-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:10px 24px;margin:10px 0 16px;font-size:13px;color:#173e69}
+.financial-chart .chart-legend span{display:inline-flex;align-items:center;gap:7px}
+.financial-chart .chart-legend i{display:inline-block;width:11px;height:11px;border-radius:2px}
+.financial-chart details{font-size:13px;color:#52677e}
+.financial-chart summary{cursor:pointer;padding:8px 0}
+.financial-chart table{min-width:440px}
+.financial-chart td,.financial-chart th{font-variant-numeric:tabular-nums}
 #latest-financial-year{font-size:15px;line-height:1.4;margin:0 0 6px}
 #latest-financial dl{display:block;margin:0}
 #latest-financial dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,max-content);align-items:baseline;gap:16px;padding:6px 0;border-bottom:1px solid #e1e8ef}
@@ -34,6 +46,10 @@
  <p class="ownership-source" id="beneficial-owners-source" hidden></p>
 </section><div class="financial-header">
  <div><h2>Ekonomisk utveckling</h2><p id="financial-note">Historik upp till tio år visas när verifierade bokslutsuppgifter finns.</p></div>
+ <article class="card financial-chart" aria-labelledby="financial-chart-heading">
+  <h3 id="financial-chart-heading">Omsättning och resultat</h3>
+  <div class="empty" id="financial-chart">Bokslutsuppgifter saknas ännu</div>
+ </article>
  <section class="card latest-financial" id="latest-financial" aria-labelledby="latest-financial-year" hidden>
   <h3 id="latest-financial-year"></h3>
   <dl>
@@ -45,9 +61,9 @@
   </dl>
   <p class="financial-rounding-note">Avrundat till närmaste 1 000 kr.</p>
  </section>
-</div><div class="grid"><article class="card"><h3>Omsättning</h3><div class="empty" id="sales-chart">Bokslutsuppgifter saknas ännu</div></article><article class="card"><h3>Årets resultat</h3><div class="empty" id="profit-chart">Bokslutsuppgifter saknas ännu</div></article></div><h2>Kontaktuppgifter</h2><section class="card"><p id="postal-address">Postadress ännu inte tillgänglig.</p><p id="contact-availability">Telefon, webbplats och övriga arbetsställen visas när uppgifterna har verifierats.</p></section></div></main><footer>© Orgindex.se</footer><script>if(new URLSearchParams(location.search).get('embed')==='1'){document.documentElement.classList.add('embedded');const report=()=>parent.postMessage({type:'orgindex-profile-size',height:document.querySelector('main').getBoundingClientRect().height},location.origin);new ResizeObserver(report).observe(document.body);addEventListener('load',report);}const financialRows=[[2016,33954,4384],[2017,35168,6536],[2018,38911,5488],[2019,40594,3357],[2020,40621,6464],[2021,43805,4110],[2022,42063,-236],[2023,40302,-3726],[2024,40272,1053],[2025,39878,1599]];function showFinancial(rows, sourceLabel, sourceUrl, latestAccount = null) {
+</div><h2>Kontaktuppgifter</h2><section class="card"><p id="postal-address">Postadress ännu inte tillgänglig.</p><p id="contact-availability">Telefon, webbplats och övriga arbetsställen visas när uppgifterna har verifierats.</p></section></div></main><footer>© Orgindex.se</footer><script>if(new URLSearchParams(location.search).get('embed')==='1'){document.documentElement.classList.add('embedded');const report=()=>parent.postMessage({type:'orgindex-profile-size',height:document.querySelector('main').getBoundingClientRect().height},location.origin);new ResizeObserver(report).observe(document.body);addEventListener('load',report);}const financialRows=[[2016,33954,4384],[2017,35168,6536],[2018,38911,5488],[2019,40594,3357],[2020,40621,6464],[2021,43805,4110],[2022,42063,-236],[2023,40302,-3726],[2024,40272,1053],[2025,39878,1599]];function showFinancial(rows, sourceLabel, sourceUrl, latestAccount = null) {
  const [period, revenue, profit] = rows[rows.length - 1];
- document.getElementById('latest-financial-year').textContent = 'Senaste bokslut ' + period.slice(0, 4);
+ document.getElementById('latest-financial-year').textContent = 'Senaste bokslut ' + period.slice(0, 7);
  const summary = latestAccount || {
   netRevenue: Number.isFinite(revenue) ? revenue * 1000000 : null,
   netProfit: Number.isFinite(profit) ? profit * 1000000 : null
@@ -79,84 +95,121 @@
  source.textContent = sourceLabel;
  note.append(source);
 
- const labelForPeriod = (period) => period.length === 4 ? period : period.slice(0, 7);
- function draw(id, column, label) {
-  const unit = column === 2 ? 'kr' : 'Mkr';
-  const formatAmount = amount => amount.toLocaleString('sv-SE', {maximumFractionDigits: column === 2 ? 2 : 6});
-  const values = rows.filter(row => Number.isFinite(row[column])).map(row =>
-   column === 2 ? [row[0], row[1], row[2] * 1000000] : row);
-  if (!values.length) return;
-  const box = document.getElementById(id);
-  box.className = 'chartbox';
-  box.replaceChildren();
-
-  const svgElement = (tag, attributes, content) => {
-   const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
-   for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
-   if (content !== undefined) element.textContent = content;
-   return element;
-  };
-  const svg = svgElement('svg', {viewBox: '0 0 640 245', role: 'img', 'aria-label': label + (column === 2 ? ', kronor' : ', miljoner kronor')});
-  const amounts = values.map(row => row[column]);
-  const min = Math.min(0, ...amounts);
-  const max = Math.max(0, ...amounts);
-  const step = 10 ** Math.floor(Math.log10((max - min || 1) / 4));
-  const tickSize = step * Math.ceil((max - min || 1) / (5 * step));
-  const low = Math.floor(min / tickSize) * tickSize;
-  const high = Math.max(low + tickSize, Math.ceil(max / tickSize) * tickSize);
-  const y = value => 24 + (high - value) / (high - low) * 168;
-  const chartLeft = Math.max(72, Math.max(formatAmount(low).length, formatAmount(high).length) * 7 + 16);
-  const chartWidth = 626 - chartLeft;
-
-  for (let i = 0; i <= Math.round((high - low) / tickSize); i++) {
-   const tick = low + i * tickSize;
-   svg.append(
-    svgElement('line', {x1: chartLeft, x2: 626, y1: y(tick), y2: y(tick), stroke: '#e1e8ef'}),
-    svgElement('text', {x: chartLeft - 6, y: y(tick) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#52677e'}, formatAmount(tick))
-   );
-  }
-  svg.append(svgElement('line', {x1: chartLeft, x2: 626, y1: y(0), y2: y(0), stroke: '#8094a7'}));
-  const slotWidth = chartWidth / values.length;
-  const barWidth = Math.min(44, slotWidth * 0.62);
-  values.forEach((row, index) => {
-   const amount = row[column];
-   const x = chartLeft + (index + 0.5) * slotWidth;
-   const bar = svgElement('rect', {
-    x: x - barWidth / 2, y: Math.min(y(amount), y(0)), width: barWidth,
-    height: Math.max(1, Math.abs(y(amount) - y(0))), rx: 3,
-    fill: amount < 0 ? '#b64a4a' : '#28649a'
-   });
-   bar.append(svgElement('title', {}, row[0] + ' · ' + formatAmount(amount) + ' ' + unit));
-   svg.append(bar, svgElement('text', {
-    x, y: 216, 'text-anchor': 'middle', 'font-size': 11, fill: '#173e69'
-   }, labelForPeriod(row[0])));
-  });
-  svg.append(svgElement('text', {x: 2, y: 12, 'font-size': 10, fill: '#52677e'}, unit));
-  box.append(svg);
-
-  const details = document.createElement('details');
-  const summary = document.createElement('summary');
-  summary.textContent = 'Visa belopp';
-  details.append(summary);
-  const table = document.createElement('table');
-  const heading = table.createTHead().insertRow();
-  for (const label of ['Periodslut', unit]) {
-   const cell = document.createElement('th');
-   cell.scope = 'col';
-   cell.textContent = label;
-   heading.append(cell);
-  }
-  const body = table.createTBody();
-  for (const row of values) {
-   const entry = body.insertRow();
-   entry.insertCell().textContent = row[0];
-   entry.insertCell().textContent = formatAmount(row[column]);
-  }
-  details.append(table);
-  box.append(details);
+ const labelForPeriod = period => period.length === 4 ? period : period.slice(0, 7);
+ const resultColumn = rows.some(row => Number.isFinite(row[3])) ? 3 : 2;
+ const resultLabel = resultColumn === 3 ? 'Resultat efter finansnetto' : 'Årets resultat efter skatt';
+ const series = [
+  {column: 1, label: 'Nettoomsättning', color: '#28649a'},
+  {column: resultColumn, label: resultLabel, color: '#248b88'}
+ ];
+ const values = rows.slice().reverse();
+ const amounts = values.flatMap(row => series
+  .filter(item => Number.isFinite(row[item.column]))
+  .map(item => row[item.column] * 1000));
+ const box = document.getElementById('financial-chart');
+ if (!amounts.length) {
+  box.textContent = 'Uppgifter om omsättning och resultat saknas i boksluten.';
+  return;
  }
- draw('sales-chart', 1, 'Nettoomsättning');
- draw('profit-chart', 2, 'Årets resultat efter skatt');
+ box.className = 'chartbox';
+ box.replaceChildren();
+ const formatAmount = amount => amount.toLocaleString('sv-SE', {maximumFractionDigits: 2});
+ const svgElement = (tag, attributes, content) => {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+  if (content !== undefined) element.textContent = content;
+  return element;
+ };
+ const unit = document.createElement('p');
+ unit.className = 'chart-unit';
+ unit.textContent = 'Belopp i tkr (1 000 kr)';
+ const scroll = document.createElement('div');
+ scroll.className = 'chart-scroll';
+ scroll.tabIndex = 0;
+ scroll.setAttribute('role', 'region');
+ scroll.setAttribute('aria-label', 'Bokslutsdiagram, senaste perioden till vänster');
+ const width = Math.max(480, 100 + values.length * 68);
+ const svg = svgElement('svg', {
+  viewBox: '0 0 ' + width + ' 300', role: 'img',
+  'aria-label': 'Nettoomsättning och ' + resultLabel.toLocaleLowerCase('sv-SE') + ', tusentals kronor'
+ });
+ svg.style.minWidth = width + 'px';
+ const min = Math.min(0, ...amounts);
+ const max = Math.max(0, ...amounts);
+ const step = 10 ** Math.floor(Math.log10((max - min || 1) / 4));
+ const tickSize = step * Math.ceil((max - min || 1) / (5 * step));
+ const low = Math.floor(min / tickSize) * tickSize;
+ const high = Math.max(low + tickSize, Math.ceil(max / tickSize) * tickSize);
+ const y = value => 18 + (high - value) / (high - low) * 236;
+ const chartLeft = Math.max(64, Math.max(formatAmount(low).length, formatAmount(high).length) * 7 + 12);
+ const chartRight = width - 14;
+ const chartWidth = chartRight - chartLeft;
+ for (let i = 0; i <= Math.round((high - low) / tickSize); i++) {
+  const tick = low + i * tickSize;
+  svg.append(
+   svgElement('line', {x1: chartLeft, x2: chartRight, y1: y(tick), y2: y(tick), stroke: '#e1e8ef'}),
+   svgElement('text', {x: chartLeft - 8, y: y(tick) + 4, 'text-anchor': 'end', 'font-size': 12, fill: '#52677e'}, formatAmount(tick))
+  );
+ }
+ svg.append(svgElement('line', {x1: chartLeft, x2: chartRight, y1: y(0), y2: y(0), stroke: '#8094a7'}));
+ const slotWidth = chartWidth / values.length;
+ const barWidth = Math.min(32, slotWidth * 0.32);
+ const barGap = Math.min(6, slotWidth * 0.08);
+ values.forEach((row, index) => {
+  const center = chartLeft + (index + 0.5) * slotWidth;
+  series.forEach((item, seriesIndex) => {
+   if (!Number.isFinite(row[item.column])) return;
+   const amount = row[item.column] * 1000;
+   const bar = svgElement('rect', {
+    x: center + (seriesIndex === 0 ? -barWidth - barGap / 2 : barGap / 2),
+    y: Math.min(y(amount), y(0)), width: barWidth,
+    height: Math.abs(y(amount) - y(0)), rx: 2, fill: item.color
+   });
+   bar.append(svgElement('title', {}, labelForPeriod(row[0]) + ' · ' + item.label + ': ' + formatAmount(row[item.column] * 1000000) + ' kr'));
+   svg.append(bar);
+  });
+  svg.append(svgElement('text', {
+   x: center, y: 280, 'text-anchor': 'middle', 'font-size': 12, fill: '#173e69'
+  }, labelForPeriod(row[0])));
+ });
+ scroll.append(svg);
+ const legend = document.createElement('div');
+ legend.className = 'chart-legend';
+ for (const item of series) {
+  const label = document.createElement('span');
+  const swatch = document.createElement('i');
+  swatch.style.backgroundColor = item.color;
+  swatch.setAttribute('aria-hidden', 'true');
+  label.append(swatch, item.label);
+  legend.append(label);
+ }
+ box.append(unit, scroll, legend);
+ const details = document.createElement('details');
+ const detailSummary = document.createElement('summary');
+ detailSummary.textContent = 'Visa exakta belopp per period';
+ details.append(detailSummary);
+ const tableScroll = document.createElement('div');
+ tableScroll.className = 'chart-table-scroll';
+ const table = document.createElement('table');
+ const heading = table.createTHead().insertRow();
+ for (const label of ['Periodslut', 'Nettoomsättning (kr)', resultLabel + ' (kr)']) {
+  const cell = document.createElement('th');
+  cell.scope = 'col';
+  cell.textContent = label;
+  heading.append(cell);
+ }
+ const body = table.createTBody();
+ for (const row of values) {
+  const entry = body.insertRow();
+  entry.insertCell().textContent = row[0];
+  for (const item of series) {
+   entry.insertCell().textContent = Number.isFinite(row[item.column])
+    ? formatAmount(row[item.column] * 1000000) : 'Uppgift saknas';
+  }
+ }
+ tableScroll.append(table);
+ details.append(tableScroll);
+ box.append(details);
 }
 (async()=>{const s=document.getElementById('status');const n=new URLSearchParams(location.search).get('orgnr')||'';try{if(!/^\d{6}-?\d{4}$/.test(n))throw Error('Ogiltigt organisationsnummer');const r=await fetch('/api/company?orgnr='+encodeURIComponent(n));const d=await r.json();if(!r.ok)throw Error(d.error||'Kunde inte hämta företaget');const nr=d.orgnr.slice(0,6)+'-'+d.orgnr.slice(6);document.getElementById('name').textContent=d.name;document.getElementById('number').textContent='Organisationsnummer: '+nr;document.getElementById('orgnr').textContent=nr;const industry = d.industryName || (d.sni ? 'SNI ' + d.sni : 'Uppgift saknas');
 document.getElementById('industry-name').textContent = industry;
@@ -344,9 +397,13 @@ if (contact) {
  source.rel = 'noopener noreferrer';
  section.append(source);
 }
-const inMillions = value => value === null ? null : Number(value) / 1000000;
+const inMillions = value => {
+ const amount = typeof value === 'number' ? value
+  : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+ return Number.isFinite(amount) ? amount / 1000000 : null;
+};
 if (accounts.length) {
- const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.netProfit)]).reverse();
+ const rows = accounts.map(account => [account.periodEnd, inMillions(account.netRevenue), inMillions(account.netProfit), inMillions(account.profitAfterFinancialItems)]).reverse();
  showFinancial(rows, 'Bolagsverket', 'https://bolagsverket.se/apierochoppnadata/hamtaforetagsinformation/nedladdningsbarafiler.2517.html', accounts[0]);
 } else if (d.orgnr === '5560094178') {
  showFinancial(financialRows.map(([year, revenue, profit]) => [String(year), revenue, profit]),
