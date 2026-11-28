@@ -355,30 +355,7 @@ if (activity) {
  document.getElementById('company-activity').hidden = false;
 }
 const address=[d.coAddress,d.address,[d.postalCode,d.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');document.getElementById('postal-address').textContent=address?'Postadress: '+address:'Postadress ännu inte tillgänglig.';const accounts = Array.isArray(d.annualAccounts) ? d.annualAccounts : [];
-const verifiedContacts = {
- '5566733472': {
-  phone: '031-82 48 18',
-  phoneUrl: 'tel:+4631824818',
-  website: 'https://www.svenskkylservice.se/',
-  source: 'https://www.svenskkylservice.se/',
-  verifiedAt: '2026-11-28'
- },
- '5594860594': {
-  website: 'https://www.napsthlm.com/',
-  source: 'https://www.napsthlm.com/'
- },
- '5560094178': {
-  phone: '08-738 60 00',
-  phoneUrl: 'tel:+4687386000',
-  website: 'https://www.electroluxgroup.com/',
-  postalAddress: 'AB Electrolux, 105 45 Stockholm',
-  visitingAddress: 'S:t Göransgatan 143 K, Stockholm',
-  deliveryAddress: 'Sankt Göransgatan 143 A, 112 13 Stockholm',
-  source: 'https://www.electroluxgroup.com/en/electrolux-group-headquarters-17256/',
-  sourceName: 'Electrolux officiella kontaktuppgifter'
- }
-};
-const contact = verifiedContacts[d.orgnr] || {};
+const contact = d.contactInfo && typeof d.contactInfo === 'object' ? d.contactInfo : {};
 const contactDetails = document.getElementById('company-contact-details');
 const publicWebsite = value => {
  if (typeof value !== 'string' || !value.trim()) return null;
@@ -422,16 +399,30 @@ for (const [label, value] of [
  item.append(term, description);
  contactDetails.append(item);
 }
-const contactSourceUrl = publicWebsite(contact.source);
-if (contactSourceUrl && (websiteUrl || contact.phone)) {
+const contactSources = Array.isArray(contact.sources) ? contact.sources : [];
+const validSources = contactSources.filter(source =>
+ source && typeof source.name === 'string' && source.name.trim()
+ && publicWebsite(source.url) && Array.isArray(source.fields)
+ && source.fields.some(field => field === 'phone' && contact.phone || field === 'website' && websiteUrl)
+);
+if (validSources.length) {
  const sourceNote = document.getElementById('company-contact-source');
- const sourceLink = document.createElement('a');
- sourceLink.href = contactSourceUrl.href;
- sourceLink.textContent = contact.sourceName || 'företagets webbplats';
- sourceLink.target = '_blank';
- sourceLink.rel = 'noopener noreferrer';
- if (contact.verifiedAt) sourceLink.title = 'Kontrollerad ' + contact.verifiedAt;
- sourceNote.append('Källa: ', sourceLink);
+ sourceNote.append('Källa: ');
+ validSources.forEach((source, index) => {
+  if (index) sourceNote.append(' · ');
+  if (validSources.length > 1) {
+   const labels = source.fields.filter(field => field === 'phone' && contact.phone || field === 'website' && websiteUrl)
+    .map(field => field === 'phone' ? 'Telefon' : 'Hemsida');
+   sourceNote.append(labels.join(' och ') + ': ');
+  }
+  const sourceLink = document.createElement('a');
+  sourceLink.href = publicWebsite(source.url).href;
+  sourceLink.textContent = source.name;
+  sourceLink.target = '_blank';
+  sourceLink.rel = 'noopener noreferrer';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(source.checkedAt || '')) sourceLink.title = 'Kontrollerad ' + source.checkedAt;
+  sourceNote.append(sourceLink);
+ });
  sourceNote.hidden = false;
 }
 const inMillions = value => {

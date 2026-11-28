@@ -1,0 +1,51 @@
+{
+  "5566733472": {
+    "phone": "031-82 48 18",
+    "phoneUrl": "tel:+4631824818",
+    "website": "https://www.svenskkylservice.se/",
+    "sources": [
+      {
+        "name": "företagets webbplats",
+        "url": "https://www.svenskkylservice.se/",
+        "checkedAt": "2026-11-28",
+        "fields": [
+          "phone",
+          "website"
+        ]
+      }
+    ]
+  },
+  "5594860594": {
+    "website": "https://www.napsthlm.com/",
+    "sources": [
+      {
+        "name": "företagets webbplats",
+        "url": "https://www.napsthlm.com/",
+        "checkedAt": "2026-11-28",
+        "fields": [
+          "website"
+        ]
+      }
+    ]
+  },
+  "5560094178": {
+    "phone": "08-738 60 00",
+    "phoneUrl": "tel:+4687386000",
+    "website": "https://www.electroluxgroup.com/",
+    "postalAddress": "AB Electrolux, 105 45 Stockholm",
+    "visitingAddress": "S:t Göransgatan 143 K, Stockholm",
+    "deliveryAddress": "Sankt Göransgatan 143 A, 112 13 Stockholm",
+    "sources": [
+      {
+        "name": "Electrolux officiella kontaktuppgifter",
+        "url": "https://www.electroluxgroup.com/en/electrolux-group-headquarters-17256/",
+        "checkedAt": "2026-11-28",
+        "fields": [
+          "phone",
+          "website"
+        ]
+      }
+    ]
+  }
+}
+

@@ -3,6 +3,9 @@
     "api/bolagsverket-import.py": {
       "maxDuration": 300,
       "includeFiles": "{scripts/*.py,data/bv-manifests/*.urls}"
+    },
+    "api/contact-import.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -17,6 +20,11 @@
     {
       "path": "/api/bolagsverket-import?worker=3",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/contact-import",
+      "schedule": "* * * * *"
     }
   ]
 }
+
