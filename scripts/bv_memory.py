@@ -32,7 +32,7 @@ MAX_CONCURRENT_IMPORTS = 3
 MAX_DATABASE_REQUEST_BYTES = 60_000_000
 CLAIM_LOCK = 18472640
 COMMIT_LOCK = 18472641
-PARSER_VERSION = "memory-2026-11-28-v4"
+PARSER_VERSION = "memory-2026-11-28-v5"
 
 
 class ImportFailure(RuntimeError):
@@ -97,6 +97,9 @@ class Database:
     def _request(self, payload, extra_headers=None):
         body = json_text(payload).encode("utf-8")
         if len(body) > MAX_DATABASE_REQUEST_BYTES:
+            # A handled exception keeps its traceback frame alive. Do not retain
+            # this oversized encoding while compacting or using native Postgres.
+            del body
             raise ImportFailure("database_request_too_large")
         request = urllib.request.Request(
             self.endpoint,
@@ -138,6 +141,46 @@ class Database:
         if len(results) != len(batch) or any("rows" not in row for row in results):
             raise ImportFailure("database_invalid_response")
         return [row["rows"] for row in results[2:]]
+
+    def postgres_locked_transaction(self, queries, lock_key):
+        """Send oversized imports as separate statements in one SQL transaction.
+
+        Use only after the HTTP byte guard rejects a request locally. No HTTP
+        request has then been sent, so there is no ambiguous commit to repeat.
+        RawCursor preserves the existing $1 placeholders and parameter binding.
+        The connection context commits all statements together, or rolls back
+        everything on an error, and always closes the connection.
+        """
+        import psycopg
+        from psycopg.rows import dict_row
+
+        try:
+            with psycopg.connect(
+                self.dsn, cursor_factory=psycopg.RawCursor, row_factory=dict_row,
+                connect_timeout=10, prepare_threshold=None,
+                sslmode="verify-full", sslrootcert="system",
+                application_name="orgindex-bv-import",
+            ) as connection:
+                connection.isolation_level = psycopg.IsolationLevel.READ_COMMITTED
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT set_config('lock_timeout','10s',true)")
+                    cursor.execute("SELECT set_config('statement_timeout','50s',true)")
+                    cursor.execute("SELECT set_config('idle_in_transaction_session_timeout','60s',true)")
+                    cursor.execute("SELECT pg_advisory_xact_lock($1::bigint)", [lock_key])
+                    results = []
+                    # Each work statement starts after the advisory lock, with
+                    # a fresh READ COMMITTED snapshot, as on the HTTP path.
+                    for query, params in queries:
+                        cursor.execute(query, list(params))
+                        results.append(cursor.fetchall())
+                return results
+        except psycopg.Error as exc:
+            # Database messages can contain credentials or entire source rows.
+            # Log only a bounded SQLSTATE, never the connection/error text.
+            code = getattr(exc, "sqlstate", None)
+            if not isinstance(code, str) or not re.fullmatch(r"[A-Z0-9]{5}", code):
+                raise ImportFailure("database_postgres_connection_failed") from None
+            raise ImportFailure("database_postgres_" + code) from None
 
 
 def manifests():
@@ -416,11 +459,16 @@ def import_one(db, cached_archive=None):
             if str(exc) != "database_request_too_large":
                 raise
             # This specific error is raised before any network request. Retry
-            # locally with compressed diagnostic text; the unchanged byte guard
-            # still rejects the whole transaction if it cannot safely fit.
+            # locally with compressed diagnostic text. If it still cannot fit,
+            # use the native Postgres protocol with the same atomic transaction.
             diagnostics = compress_diagnostic_text(diagnostics)
             queries[1][1][6] = json_text(diagnostics)
-            companies, result = db.locked_transaction(queries, COMMIT_LOCK)
+            try:
+                companies, result = db.locked_transaction(queries, COMMIT_LOCK)
+            except ImportFailure as compact_error:
+                if str(compact_error) != "database_request_too_large":
+                    raise
+                companies, result = db.postgres_locked_transaction(queries, COMMIT_LOCK)
         if not result:
             raise ImportFailure("lease_lost")
         return {"state": "completed", "file": label, "bytes": size,
