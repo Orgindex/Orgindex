@@ -26,9 +26,11 @@ MAX_BYTES = 256 * 1024 * 1024
 MAX_DOWNLOAD_ATTEMPTS = 4
 DOWNLOAD_DEADLINE_SECONDS = 150
 MAX_CONCURRENT_IMPORTS = 3
+# Keep the complete UTF-8 JSON body below Neon's 64 MB HTTP request limit.
+MAX_DATABASE_REQUEST_BYTES = 60_000_000
 CLAIM_LOCK = 18472640
 COMMIT_LOCK = 18472641
-PARSER_VERSION = "memory-2026-11-28-v2"
+PARSER_VERSION = "memory-2026-11-28-v3"
 
 
 class ImportFailure(RuntimeError):
@@ -55,9 +57,12 @@ class Database:
         self.endpoint = "https://" + host + "/sql"
 
     def _request(self, payload, extra_headers=None):
+        body = json_text(payload).encode("utf-8")
+        if len(body) > MAX_DATABASE_REQUEST_BYTES:
+            raise ImportFailure("database_request_too_large")
         request = urllib.request.Request(
             self.endpoint,
-            data=json_text(payload).encode(),
+            data=body,
             headers={"Content-Type": "application/json", "Neon-Connection-String": self.dsn,
                      **(extra_headers or {})},
             method="POST",

@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import http.client
 from io import BytesIO
+import json
 import os
 import threading
 import unittest
@@ -10,7 +11,7 @@ from unittest.mock import Mock, patch
 
 from scripts.bv_memory import (
     CLAIM_LOCK, COMMIT_LOCK, COMMIT_SQL, Database, MAX_CONCURRENT_IMPORTS,
-    ImportFailure, PARSER_VERSION, PREPARE_COMPANIES_SQL, claim, download, import_one,
+    ImportFailure, PARSER_VERSION, PREPARE_COMPANIES_SQL, claim, download, import_one, json_text,
 )
 from scripts.bv_parse import ParseError
 
@@ -125,6 +126,55 @@ class ImportFailureDiagnosticsTests(unittest.TestCase):
         message, saved = self.fail_parse(ValueError("private database connection string"))
         self.assertEqual(message, "ValueError")
         self.assertEqual(saved, message)
+
+
+class DatabasePayloadTests(unittest.TestCase):
+    dsn = "postgresql://fixture:fixture@fixture.neon.tech/fixture"
+
+    def test_request_limit_counts_serialized_utf8_bytes_before_network(self):
+        payload = {"query": "SELECT $1::text", "params": ["å" * 100]}
+        character_count = len(json_text(payload))
+        self.assertGreater(len(json_text(payload).encode("utf-8")), character_count)
+        with patch("scripts.bv_memory.MAX_DATABASE_REQUEST_BYTES", character_count), \
+             patch("scripts.bv_memory.urllib.request.build_opener") as opener:
+            with self.assertRaisesRegex(ImportFailure, "database_request_too_large"):
+                Database(self.dsn)._request(payload)
+        opener.assert_not_called()
+
+    def test_request_at_safe_limit_is_sent_unchanged(self):
+        payload = {"query": "SELECT $1::text", "params": ["å"]}
+        body = json_text(payload).encode("utf-8")
+        opener = Mock()
+        opener.open.return_value = BytesIO(b'{"rows":[]}')
+        with patch("scripts.bv_memory.MAX_DATABASE_REQUEST_BYTES", len(body)), \
+             patch("scripts.bv_memory.urllib.request.build_opener", return_value=opener):
+            self.assertEqual(Database(self.dsn)._request(payload), {"rows": []})
+        self.assertEqual(opener.open.call_args.args[0].data, body)
+
+    def test_oversized_import_sends_only_failure_update_and_never_completion(self):
+        job = {"source_url": "https://vardefulla-datamangder.bolagsverket.se/"
+                             "arsredovisningar-bulkfiler/arsredovisningar/2026/19_1.zip",
+               "attempts": 11}
+        buffer = BytesIO(b"zip fixture")
+        parsed = {"rows": [], "report_count": 1,
+                  "skipped": [{"reason": "invalid_xml", "content": "x" * 32768}],
+                  "conflicts": [], "ignored_attachments": []}
+        opener = Mock()
+        opener.open.return_value = BytesIO(b'{"rows":[]}')
+        with patch("scripts.bv_memory.claim", return_value=job), \
+             patch("scripts.bv_memory.download", return_value=(buffer, 11, "a" * 64)), \
+             patch("scripts.bv_parse.parse_archive", return_value=parsed), \
+             patch("scripts.bv_memory.MAX_DATABASE_REQUEST_BYTES", 16384), \
+             patch("scripts.bv_memory.urllib.request.build_opener", return_value=opener):
+            with self.assertRaisesRegex(ImportFailure, "database_request_too_large"):
+                import_one(Database(self.dsn))
+        self.assertTrue(buffer.closed)
+        self.assertEqual(opener.open.call_count, 1)
+        sent = json.loads(opener.open.call_args.args[0].data)
+        self.assertIn("SET status='failed'", sent["query"])
+        self.assertNotIn("completed", sent["query"])
+        self.assertNotIn("orgindex_annual_accounts", sent["query"])
+        self.assertEqual(sent["params"], [job["source_url"], job["attempts"], "database_request_too_large"])
 
 
 @unittest.skipUnless(os.environ.get("BV_IMPORT_TEST_DSN"), "isolated Neon branch required")

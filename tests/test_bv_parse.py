@@ -1,4 +1,7 @@
 """Regression cases for values observed in Bolagsverket's real filings."""
+import base64
+import gzip
+import hashlib
 import sys
 import unittest
 import zipfile
@@ -85,6 +88,50 @@ class ParserRegressionTests(unittest.TestCase):
         self.assertEqual(result["report_count"], 1)
         self.assertEqual(len(result["skipped"]), 1)
         self.assertIn("Reporting company AB", result["skipped"][0]["content"])
+        self.assertNotIn("content_encoding", result["skipped"][0])
+
+    def test_large_diagnostic_is_lossless_deterministic_and_keeps_partial_row(self):
+        source = archive(fact("Nettoomsattning", "100")
+            + fact("EgetKapital", "bad-value", context="balance"),
+            extra="<!--" + "å" * 600000 + "-->")
+        archive_bytes = source.getvalue()
+        with zipfile.ZipFile(source) as outer:
+            with zipfile.ZipFile(BytesIO(outer.read(outer.infolist()[0]))) as inner:
+                original = inner.read("filing.xhtml")
+        result = parse_archive(archive_bytes)
+        self.assertEqual(result["report_count"], 1)
+        self.assertEqual(len(result["rows"]), 1)
+        self.assertEqual(result["rows"][0]["net_revenue"], Decimal("100"))
+        self.assertEqual(len(result["skipped"]), 1)
+        entry = result["skipped"][0]
+        self.assertEqual(entry["reason"], "unsupported_facts:equity:unsupported_number")
+        self.assertEqual(entry["content_encoding"], "gzip+base64")
+        compressed = base64.b64decode(entry["content"], validate=True)
+        self.assertEqual(gzip.decompress(compressed), original)
+        self.assertEqual(entry["content_bytes"], len(original))
+        self.assertEqual(entry["content_sha256"], hashlib.sha256(original).hexdigest())
+        self.assertLess(len(entry["content"]), len(original) // 10)
+        self.assertEqual(parse_archive(archive_bytes)["skipped"][0]["content"], entry["content"])
+
+    def test_large_invalid_utf8_diagnostic_preserves_every_original_byte(self):
+        original = b"<html>" + b"\xff\xfe\x00" + b"x" * (1024 * 1024 - 9)
+        self.assertEqual(len(original), 1024 * 1024)
+        result = parse_archive(archive("", attachments=[("invalid.xhtml", original)]))
+        self.assertEqual(result["rows"], [])
+        self.assertEqual(result["report_count"], 1)
+        self.assertEqual(len(result["skipped"]), 2)
+        entry = next(item for item in result["skipped"] if item["document"] == "invalid.xhtml")
+        self.assertEqual(entry["reason"], "invalid_xml")
+        self.assertEqual(entry["content_encoding"], "gzip+base64")
+        self.assertEqual(gzip.decompress(base64.b64decode(entry["content"], validate=True)), original)
+        self.assertEqual(entry["content_bytes"], len(original))
+        self.assertEqual(entry["content_sha256"], hashlib.sha256(original).hexdigest())
+
+    def test_compression_does_not_relax_uncompressed_exception_limit(self):
+        original = b"x" * (1024 * 1024)
+        with patch("bv_parse.MAX_RETAINED_EXCEPTIONS", len(original) - 1):
+            with self.assertRaisesRegex(ParseError, "too_much_exception_content"):
+                parse_archive(archive("", attachments=[("large.xhtml", original)]))
 
     def test_corrupt_or_oversized_archive_cannot_be_completed(self):
         with self.assertRaises(ParseError):

@@ -5,8 +5,11 @@ which cannot be represented are returned with their unpacked source for review.
 """
 from __future__ import annotations
 
+import base64
 from datetime import date
 from decimal import Decimal, InvalidOperation
+import gzip
+import hashlib
 from io import BytesIO
 from pathlib import PurePosixPath
 import re
@@ -27,6 +30,7 @@ MAX_DOCUMENT_BYTES = 128 * 1024 * 1024
 MAX_OUTER_EXPANSION = 1024 * 1024 * 1024
 MAX_TOTAL_EXPANSION = 2 * 1024 * 1024 * 1024
 MAX_RETAINED_EXCEPTIONS = 256 * 1024 * 1024
+COMPRESS_DIAGNOSTIC_BYTES = 1024 * 1024
 MAX_REPORTS = 20000
 MAX_INNER_ENTRIES = 1000
 MAX_NESTED_ZIP_DEPTH = 3
@@ -168,6 +172,8 @@ def parse_archive(source):
     ``source`` may be BytesIO, another seekable binary stream, bytes, or a Path.
     Nothing is extracted onto the filesystem. ``skipped`` can include a source
     document with a partial row when some of its facts need manual review.
+    Large retained documents use ``content_encoding="gzip+base64"`` with their
+    original byte count and SHA-256; smaller documents retain the text format.
     """
     if isinstance(source, (bytes, bytearray)):
         source = BytesIO(source)
@@ -215,12 +221,25 @@ def parse_archive(source):
 
     def retain(member, document, reason, content=None):
         nonlocal retained
+        entry = dict(archive_member=member, document=document, reason=reason, content=content)
         if isinstance(content, bytes):
             retained += len(content)
-            content = content.decode("utf-8", errors="replace")
         if retained > MAX_RETAINED_EXCEPTIONS:
             raise ParseError("too_much_exception_content")
-        skipped.append(dict(archive_member=member, document=document, reason=reason, content=content))
+        if isinstance(content, bytes):
+            if len(content) >= COMPRESS_DIAGNOSTIC_BYTES:
+                # Compress original bytes before decoding, including invalid UTF-8.
+                # A fixed mtime and empty filename make the gzip output repeatable.
+                compressed = BytesIO()
+                with gzip.GzipFile(fileobj=compressed, mode="wb", filename="",
+                                   compresslevel=6, mtime=0) as stream:
+                    stream.write(content)
+                entry.update(content=base64.b64encode(compressed.getvalue()).decode("ascii"),
+                             content_encoding="gzip+base64", content_bytes=len(content),
+                             content_sha256=hashlib.sha256(content).hexdigest())
+            else:
+                entry["content"] = content.decode("utf-8", errors="replace")
+        skipped.append(entry)
 
     try:
         with zipfile.ZipFile(source) as outer:
