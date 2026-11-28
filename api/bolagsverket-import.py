@@ -2,10 +2,17 @@
 import hmac
 import json
 import os
+import threading
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
 from scripts.bv_memory import Database, ImportFailure, MAX_CONCURRENT_IMPORTS, import_one
+
+
+# Fluid Compute can dispatch several cron requests into the same Python process.
+# Keep at most one memory-heavy archive per process; the existing database
+# claim lock still permits up to three concurrent archives across processes.
+_PROCESS_IMPORT_LOCK = threading.Lock()
 
 
 class handler(BaseHTTPRequestHandler):
@@ -32,7 +39,12 @@ class handler(BaseHTTPRequestHandler):
                     GROUP BY 1,2 ORDER BY 1 DESC,2""")
                 return self.respond(200, {"queue": rows, "zip_storage": False,
                                           "max_concurrent_imports": MAX_CONCURRENT_IMPORTS})
-            result = import_one(db)
+            if not _PROCESS_IMPORT_LOCK.acquire(blocking=False):
+                return self.respond(200, {"state": "busy_memory_guard"})
+            try:
+                result = import_one(db)
+            finally:
+                _PROCESS_IMPORT_LOCK.release()
             print(json.dumps(result), flush=True)
             return self.respond(200, result)
         except Exception as exc:

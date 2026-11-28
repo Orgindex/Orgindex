@@ -392,6 +392,10 @@ def import_one(db, cached_archive=None):
             buffer, size, digest = download(url)
         downloaded_at = time.monotonic()
         parsed = parse_archive(buffer)
+        # The parser returns independent records, never views of the ZIP buffer.
+        # Release archive memory before building the bounded Neon HTTP body.
+        buffer.close()
+        buffer = None
         parsed_at = time.monotonic()
         if not parsed["report_count"]:
             raise ImportFailure("empty_archive")
