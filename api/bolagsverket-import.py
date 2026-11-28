@@ -5,7 +5,7 @@ import os
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
-from scripts.bv_memory import Database, ImportFailure, import_one
+from scripts.bv_memory import Database, ImportFailure, MAX_CONCURRENT_IMPORTS, import_one
 
 
 class handler(BaseHTTPRequestHandler):
@@ -30,7 +30,8 @@ class handler(BaseHTTPRequestHandler):
                     status,count(*)::int AS files FROM public.orgindex_bolagsverket_file_queue
                     WHERE source_url LIKE 'https://vardefulla-datamangder.bolagsverket.se/arsredovisningar-bulkfiler/arsredovisningar/%'
                     GROUP BY 1,2 ORDER BY 1 DESC,2""")
-                return self.respond(200, {"queue": rows, "zip_storage": False})
+                return self.respond(200, {"queue": rows, "zip_storage": False,
+                                          "max_concurrent_imports": MAX_CONCURRENT_IMPORTS})
             result = import_one(db)
             print(json.dumps(result), flush=True)
             return self.respond(200, result)

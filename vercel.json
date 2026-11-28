@@ -7,7 +7,15 @@
   },
   "crons": [
     {
-      "path": "/api/bolagsverket-import",
+      "path": "/api/bolagsverket-import?worker=1",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/bolagsverket-import?worker=2",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/bolagsverket-import?worker=3",
       "schedule": "* * * * *"
     }
   ]
