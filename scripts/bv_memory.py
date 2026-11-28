@@ -6,6 +6,8 @@ All account inserts, extracted records and the completion marker commit together
 from __future__ import annotations
 
 import argparse
+import base64
+import gzip
 import hashlib
 import http.client
 import io
@@ -30,7 +32,7 @@ MAX_CONCURRENT_IMPORTS = 3
 MAX_DATABASE_REQUEST_BYTES = 60_000_000
 CLAIM_LOCK = 18472640
 COMMIT_LOCK = 18472641
-PARSER_VERSION = "memory-2026-11-28-v3"
+PARSER_VERSION = "memory-2026-11-28-v4"
 
 
 class ImportFailure(RuntimeError):
@@ -39,6 +41,42 @@ class ImportFailure(RuntimeError):
 
 def json_text(value):
     return json.dumps(value, default=str, ensure_ascii=False, separators=(",", ":"))
+
+
+def company_preparation_records(rows):
+    # Keep distinct names for an organisation: SQL must still reject ambiguous
+    # names instead of selecting whichever account happened to appear first.
+    seen = set()
+    companies = []
+    for row in rows:
+        identity = (row["orgnr"], row.get("company_name"))
+        if identity not in seen:
+            seen.add(identity)
+            companies.append(dict(orgnr=identity[0], company_name=identity[1]))
+    return companies
+
+
+def compress_diagnostic_text(diagnostics):
+    # The parser already compresses individual large documents. A bulk archive
+    # can also contain many smaller exceptions whose aggregate exceeds the HTTP
+    # limit. Preserve all their text and metadata in the same reversible format.
+    skipped = []
+    for entry in diagnostics.get("skipped", []):
+        content = entry.get("content")
+        if isinstance(content, str) and not entry.get("content_encoding"):
+            original = content.encode("utf-8")
+            compressed = io.BytesIO()
+            with gzip.GzipFile(fileobj=compressed, mode="wb", filename="",
+                               compresslevel=6, mtime=0) as stream:
+                stream.write(original)
+            packed = dict(entry, content=base64.b64encode(compressed.getvalue()).decode("ascii"),
+                          content_encoding="gzip+base64", content_bytes=len(original),
+                          content_sha256=hashlib.sha256(original).hexdigest())
+            # Do not enlarge tiny or incompressible diagnostic entries.
+            if len(json_text(packed).encode("utf-8")) < len(json_text(entry).encode("utf-8")):
+                entry = packed
+        skipped.append(entry)
+    return dict(diagnostics, skipped=skipped)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -359,14 +397,26 @@ def import_one(db, cached_archive=None):
             raise ImportFailure("empty_archive")
         diagnostics = {k: parsed.get(k, []) for k in ("skipped", "conflicts", "ignored_attachments")}
         records = json_text(parsed["rows"])
+        company_records = json_text(company_preparation_records(parsed["rows"]))
         # Preparing companies in a prior statement also sees concurrent SCB inserts
         # before the account statement's snapshot. Both statements commit together.
-        companies, result = db.locked_transaction([
-            (PREPARE_COMPANIES_SQL, [url, attempt, records]),
+        queries = [
+            (PREPARE_COMPANIES_SQL, [url, attempt, company_records]),
             (COMMIT_SQL, [url, attempt, records, digest, size,
                 parsed["report_count"], json_text(diagnostics), PARSER_VERSION,
                 len(diagnostics["skipped"]), len(diagnostics["conflicts"])]),
-        ], COMMIT_LOCK)
+        ]
+        try:
+            companies, result = db.locked_transaction(queries, COMMIT_LOCK)
+        except ImportFailure as exc:
+            if str(exc) != "database_request_too_large":
+                raise
+            # This specific error is raised before any network request. Retry
+            # locally with compressed diagnostic text; the unchanged byte guard
+            # still rejects the whole transaction if it cannot safely fit.
+            diagnostics = compress_diagnostic_text(diagnostics)
+            queries[1][1][6] = json_text(diagnostics)
+            companies, result = db.locked_transaction(queries, COMMIT_LOCK)
         if not result:
             raise ImportFailure("lease_lost")
         return {"state": "completed", "file": label, "bytes": size,
@@ -436,3 +486,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

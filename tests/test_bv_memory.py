@@ -157,7 +157,8 @@ class DatabasePayloadTests(unittest.TestCase):
                "attempts": 11}
         buffer = BytesIO(b"zip fixture")
         parsed = {"rows": [], "report_count": 1,
-                  "skipped": [{"reason": "invalid_xml", "content": "x" * 32768}],
+                  "skipped": [{"reason": "invalid_xml", "content": "".join(
+                      hashlib.sha256(str(i).encode()).hexdigest() for i in range(512))}],
                   "conflicts": [], "ignored_attachments": []}
         opener = Mock()
         opener.open.return_value = BytesIO(b'{"rows":[]}')
@@ -224,3 +225,4 @@ class ParallelImportIntegrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
