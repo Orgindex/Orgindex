@@ -22,6 +22,9 @@ YEARS = tuple(range(2026, 2019, -1))
 ORIGIN = "https://vardefulla-datamangder.bolagsverket.se"
 URL_PATTERN = re.compile(re.escape(ORIGIN) + r"/arsredovisningar-bulkfiler/arsredovisningar/(202[0-6])/(\d{2})_(\d+)\.zip\Z")
 MAX_BYTES = 256 * 1024 * 1024
+MAX_CONCURRENT_IMPORTS = 3
+CLAIM_LOCK = 18472640
+COMMIT_LOCK = 18472641
 PARSER_VERSION = "memory-2026-11-28-v1"
 
 
@@ -48,11 +51,12 @@ class Database:
             raise ImportFailure("invalid_database_host")
         self.endpoint = "https://" + host + "/sql"
 
-    def sql(self, query, params=()):
+    def _request(self, payload, extra_headers=None):
         request = urllib.request.Request(
             self.endpoint,
-            data=json_text({"query": query, "params": list(params)}).encode(),
-            headers={"Content-Type": "application/json", "Neon-Connection-String": self.dsn},
+            data=json_text(payload).encode(),
+            headers={"Content-Type": "application/json", "Neon-Connection-String": self.dsn,
+                     **(extra_headers or {})},
             method="POST",
         )
         try:
@@ -68,9 +72,26 @@ class Database:
             raise ImportFailure(f"database_http_{exc.code}_{code}") from None
         except (urllib.error.URLError, TimeoutError):
             raise ImportFailure("database_connection_failed") from None
+        return result
+
+    def sql(self, query, params=()):
+        result = self._request({"query": query, "params": list(params)})
         if "rows" not in result:
             raise ImportFailure("database_invalid_response")
         return result["rows"]
+
+    def locked_transaction(self, queries, lock_key):
+        # A separate statement AFTER the lock gets a fresh READ COMMITTED snapshot.
+        # A lock inside the work statement's CTE would leave a stale snapshot.
+        batch = [
+            {"query": "SELECT set_config('lock_timeout','10s',true)", "params": []},
+            {"query": "SELECT pg_advisory_xact_lock($1::bigint)", "params": [lock_key]},
+        ] + [{"query": query, "params": list(params)} for query, params in queries]
+        result = self._request({"queries": batch}, {"Neon-Batch-Isolation-Level": "ReadCommitted"})
+        results = result.get("results", [])
+        if len(results) != len(batch) or any("rows" not in row for row in results):
+            raise ImportFailure("database_invalid_response")
+        return [row["rows"] for row in results[2:]]
 
 
 def manifests():
@@ -95,21 +116,19 @@ def seed_queue(db):
 
 CLAIM_SQL = """WITH manifest AS MATERIALIZED (
     SELECT value AS source_url FROM jsonb_array_elements_text($1::jsonb)
-), guard AS MATERIALIZED (
-    SELECT pg_try_advisory_xact_lock(18472640) AS locked
 ), current_year AS (
     SELECT max(substring(source_url from '/arsredovisningar/([0-9]{4})/')) AS year
     FROM public.orgindex_bolagsverket_file_queue
     WHERE status <> 'completed' AND source_url IN (SELECT source_url FROM manifest)
 ), candidate AS (
-    SELECT q.source_url FROM public.orgindex_bolagsverket_file_queue q, guard, current_year y
-    WHERE guard.locked AND q.source_url IN (SELECT source_url FROM manifest)
+    SELECT q.source_url FROM public.orgindex_bolagsverket_file_queue q, current_year y
+    WHERE q.source_url IN (SELECT source_url FROM manifest)
       AND substring(q.source_url from '/arsredovisningar/([0-9]{4})/') = y.year
       AND ((q.status IN ('pending','failed') AND q.next_attempt_at <= now())
            OR (q.status='running' AND q.lease_until < now()))
-      AND NOT EXISTS (SELECT 1 FROM public.orgindex_bolagsverket_file_queue live
-                      WHERE live.status='running' AND live.lease_until >= now()
-                        AND live.source_url IN (SELECT source_url FROM manifest))
+      AND (SELECT count(*) FROM public.orgindex_bolagsverket_file_queue live
+           WHERE live.status='running' AND live.lease_until >= now()
+             AND live.source_url IN (SELECT source_url FROM manifest)) < $2::int
     ORDER BY substring(q.source_url from '/([0-9]{2})_[0-9]+[.]zip$')::int,
              substring(q.source_url from '/[0-9]{2}_([0-9]+)[.]zip$')::int
     FOR UPDATE OF q SKIP LOCKED LIMIT 1
@@ -122,7 +141,8 @@ CLAIM_SQL = """WITH manifest AS MATERIALIZED (
 
 
 def claim(db):
-    rows = db.sql(CLAIM_SQL, [json_text(manifests())])
+    rows = db.locked_transaction(
+        [(CLAIM_SQL, [json_text(manifests()), MAX_CONCURRENT_IMPORTS])], CLAIM_LOCK)[0]
     return rows[0] if rows else None
 
 
@@ -157,6 +177,22 @@ def download(url):
     size = buffer.tell()
     buffer.seek(0)
     return buffer, size, digest.hexdigest()
+
+
+PREPARE_COMPANIES_SQL = """WITH owned AS MATERIALIZED (
+    SELECT source_url FROM public.orgindex_bolagsverket_file_queue
+    WHERE source_url=$1 AND status='running' AND attempts=$2::int FOR UPDATE
+), staging AS (
+    SELECT * FROM jsonb_to_recordset($3::jsonb) AS r(orgnr text, company_name text)
+), added AS (
+    INSERT INTO public.orgindex_companies(orgnr,name,source)
+    SELECT orgnr,min(company_name),'Bolagsverket' FROM staging
+    WHERE EXISTS(SELECT 1 FROM owned) AND company_name IS NOT NULL AND length(company_name)>0
+    GROUP BY orgnr HAVING count(DISTINCT company_name)=1
+    ORDER BY orgnr
+    ON CONFLICT(orgnr) DO NOTHING RETURNING 1
+) SELECT count(*)::int AS companies_added FROM added
+"""
 
 
 COMMIT_SQL = """WITH owned AS MATERIALIZED (
@@ -228,6 +264,7 @@ def import_one(db, cached_archive=None):
     label = "/".join(url.split("/")[-2:])
     print(json_text({"state": "started", "file": label, "attempt": attempt}), flush=True)
     buffer = None
+    started = time.monotonic()
     try:
         if cached_archive is not None:
             path = Path(cached_archive)
@@ -238,21 +275,33 @@ def import_one(db, cached_archive=None):
             digest = hashlib.sha256(buffer.getbuffer()).hexdigest()
         else:
             buffer, size, digest = download(url)
+        downloaded_at = time.monotonic()
         parsed = parse_archive(buffer)
+        parsed_at = time.monotonic()
         if not parsed["report_count"]:
             raise ImportFailure("empty_archive")
         diagnostics = {k: parsed.get(k, []) for k in ("skipped", "conflicts")}
-        result = db.sql(COMMIT_SQL, [url, attempt, json_text(parsed["rows"]), digest, size,
-            parsed["report_count"], json_text(diagnostics), PARSER_VERSION,
-            len(diagnostics["skipped"]), len(diagnostics["conflicts"])])
+        records = json_text(parsed["rows"])
+        # Preparing companies in a prior statement also sees concurrent SCB inserts
+        # before the account statement's snapshot. Both statements commit together.
+        companies, result = db.locked_transaction([
+            (PREPARE_COMPANIES_SQL, [url, attempt, records]),
+            (COMMIT_SQL, [url, attempt, records, digest, size,
+                parsed["report_count"], json_text(diagnostics), PARSER_VERSION,
+                len(diagnostics["skipped"]), len(diagnostics["conflicts"])]),
+        ], COMMIT_LOCK)
         if not result:
             raise ImportFailure("lease_lost")
         return {"state": "completed", "file": label, "bytes": size,
                 "reports": parsed["report_count"], "parsed_rows": len(parsed["rows"]),
                 "inserted_rows": int(result[0]["imported_rows"]),
                 "unmatched_rows": int(result[0]["unmatched"]),
-                "companies_added": int(result[0]["companies_added"]),
-                "skipped": len(diagnostics["skipped"]), "conflicts": len(diagnostics["conflicts"])}
+                "companies_added": int(companies[0]["companies_added"]) + int(result[0]["companies_added"]),
+                "skipped": len(diagnostics["skipped"]), "conflicts": len(diagnostics["conflicts"]),
+                "seconds": {"download": round(downloaded_at-started, 2),
+                            "parse": round(parsed_at-downloaded_at, 2),
+                            "commit": round(time.monotonic()-parsed_at, 2),
+                            "total": round(time.monotonic()-started, 2)}}
     except Exception as exc:
         message = str(exc) if isinstance(exc, ImportFailure) else type(exc).__name__
         db.sql("""UPDATE public.orgindex_bolagsverket_file_queue
