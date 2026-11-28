@@ -6,6 +6,14 @@
     },
     "api/contact-import.js": {
       "maxDuration": 60
+    },
+    "api/bolagsverket-import-2.py": {
+      "maxDuration": 300,
+      "includeFiles": "{scripts/*.py,data/bv-manifests/*.urls}"
+    },
+    "api/bolagsverket-import-3.py": {
+      "maxDuration": 300,
+      "includeFiles": "{scripts/*.py,data/bv-manifests/*.urls}"
     }
   },
   "crons": [
@@ -14,11 +22,11 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/bolagsverket-import?worker=2",
+      "path": "/api/bolagsverket-import-2",
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/bolagsverket-import?worker=3",
+      "path": "/api/bolagsverket-import-3",
       "schedule": "* * * * *"
     },
     {
@@ -27,4 +35,3 @@
     }
   ]
 }
-
