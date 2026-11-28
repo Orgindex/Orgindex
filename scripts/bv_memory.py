@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-YEARS = tuple(range(2026, 2019, -1))
+YEARS = (2026, 2025)
 ORIGIN = "https://vardefulla-datamangder.bolagsverket.se"
 URL_PATTERN = re.compile(re.escape(ORIGIN) + r"/arsredovisningar-bulkfiler/arsredovisningar/(202[0-6])/(\d{2})_(\d+)\.zip\Z")
 MAX_BYTES = 256 * 1024 * 1024
@@ -127,7 +127,9 @@ CLAIM_SQL = """WITH manifest AS MATERIALIZED (
 ), current_year AS (
     SELECT max(substring(source_url from '/arsredovisningar/([0-9]{4})/')) AS year
     FROM public.orgindex_bolagsverket_file_queue
-    WHERE status <> 'completed' AND source_url IN (SELECT source_url FROM manifest)
+    WHERE source_url IN (SELECT source_url FROM manifest)
+      AND ((status IN ('pending','failed') AND next_attempt_at <= now())
+           OR (status='running' AND lease_until < now()))
 ), candidate AS (
     SELECT q.source_url FROM public.orgindex_bolagsverket_file_queue q, current_year y
     WHERE q.source_url IN (SELECT source_url FROM manifest)
