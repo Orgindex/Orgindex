@@ -138,12 +138,12 @@
  scroll.tabIndex = 0;
  scroll.setAttribute('role', 'region');
  scroll.setAttribute('aria-label', 'Bokslutsdiagram, senaste perioden till vänster');
- const width = Math.max(480, 100 + values.length * 68);
+ const width = Math.max(300, 100 + values.length * 68);
  const svg = svgElement('svg', {
   viewBox: '0 0 ' + width + ' 300', role: 'img',
   'aria-label': 'Nettoomsättning och ' + resultLabel.toLocaleLowerCase('sv-SE') + ', tusentals kronor'
  });
- svg.style.minWidth = width + 'px';
+ svg.style.minWidth = values.length <= 3 ? '0' : width + 'px';
  const min = Math.min(0, ...amounts);
  const max = Math.max(0, ...amounts);
  const step = 10 ** Math.floor(Math.log10((max - min || 1) / 4));
@@ -221,7 +221,7 @@
  details.append(tableScroll);
  box.append(details);
 }
-(async()=>{const s=document.getElementById('status');const n=new URLSearchParams(location.search).get('orgnr')||'';try{if(!/^\d{6}-?\d{4}$/.test(n))throw Error('Ogiltigt organisationsnummer');const r=await fetch('/api/company?orgnr='+encodeURIComponent(n));const d=await r.json();if(!r.ok)throw Error(d.error||'Kunde inte hämta företaget');const nr=d.orgnr.slice(0,6)+'-'+d.orgnr.slice(6);document.getElementById('name').textContent=d.name;document.getElementById('number').textContent='Organisationsnummer: '+nr;document.getElementById('orgnr').textContent=nr;const industry = d.industryName || (d.sni ? 'SNI ' + d.sni : 'Uppgift saknas');
+(async()=>{const s=document.getElementById('status');const n=new URLSearchParams(location.search).get('orgnr')||'';try{if(!/^\d{6}-?\d{4}$/.test(n))throw Error('Ogiltigt organisationsnummer');const r=await fetch('/api/company?orgnr='+encodeURIComponent(n), {cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Kunde inte hämta företaget');const nr=d.orgnr.slice(0,6)+'-'+d.orgnr.slice(6);document.getElementById('name').textContent=d.name;document.getElementById('number').textContent='Organisationsnummer: '+nr;document.getElementById('orgnr').textContent=nr;const industry = d.industryName || (d.sni ? 'SNI ' + d.sni : 'Uppgift saknas');
 document.getElementById('industry-name').textContent = industry;
 const city = typeof d.city === 'string' ? d.city.trim() : '';
 const displayCity = city && city === city.toLocaleUpperCase('sv-SE')
