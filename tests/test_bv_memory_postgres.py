@@ -6,6 +6,7 @@ import json
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
+import certifi
 import psycopg
 from psycopg.rows import dict_row
 
@@ -168,7 +169,7 @@ class NativeTransactionTests(unittest.TestCase):
         self.assertIsNone(options["prepare_threshold"])
         self.assertEqual(options["connect_timeout"], 10)
         self.assertEqual(options["sslmode"], "verify-full")
-        self.assertEqual(options["sslrootcert"], "system")
+        self.assertEqual(options["sslrootcert"], certifi.where())
         self.assertEqual(self.connection.isolation_level, psycopg.IsolationLevel.READ_COMMITTED)
         self.connection.__enter__.assert_called_once()
         self.connection.__exit__.assert_called_once_with(None, None, None)
@@ -211,6 +212,13 @@ class NativeTransactionTests(unittest.TestCase):
                 Database(self.dsn).postgres_locked_transaction(self.queries, COMMIT_LOCK)
         self.assertNotIn("fixture", str(caught.exception))
         self.assertNotIn("secret", str(caught.exception))
+
+    def test_tls_connection_error_is_categorized_without_returning_driver_text(self):
+        failure = psycopg.OperationalError(
+            "connection to private-host failed: SSL error: certificate verify failed password=secret")
+        with patch("psycopg.connect", side_effect=failure):
+            with self.assertRaisesRegex(ImportFailure, "^database_postgres_tls_verification_failed$"):
+                Database(self.dsn).postgres_locked_transaction(self.queries, COMMIT_LOCK)
 
 
 if __name__ == "__main__":
