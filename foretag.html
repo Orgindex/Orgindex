@@ -10,7 +10,7 @@
 #latest-financial .label{font-size:13px;line-height:1.4}
 #latest-financial .value{margin:0;font-size:14px;line-height:1.4;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
 #latest-financial .financial-rounding-note{font-size:11px;line-height:1.4;margin:6px 0 0}
-.industry-location dl{display:grid;gap:10px;margin:0}.industry-location .company-activity{grid-column:1/-1}.industry-location .company-activity dd{font-weight:400}.industry-location dd{margin:2px 0 0;font-weight:700}html.embedded #profile>div.grid:first-of-type{display:block}html.embedded #profile>div.grid:first-of-type>.card:not(.industry-location){display:none}html.embedded .industry-location dl{grid-template-columns:repeat(2,minmax(0,1fr))}.industry-location .company-employees{grid-column:1/-1}.company-employees .label{font-size:14px}.employee-value{display:block;font-size:22px;line-height:1.3}.employee-value[data-missing="true"]{font-size:16px;font-weight:400}.employee-note{display:block;margin-top:4px;color:#52677e;font-size:13px;line-height:1.4;font-weight:400}.contact-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px 24px;margin:16px 0 0}.contact-links dt{font-size:14px;color:#52677e}.contact-links dd{margin:0}.contact-links a{display:inline-block;padding:8px 0;font-size:16px;overflow-wrap:anywhere}.contact-source{display:block;margin-top:8px;font-size:13px;color:#52677e}.industry-location .company-parent{grid-column:1/-1}.parent-company-note{display:block;margin-top:4px;font-size:13px;line-height:1.4;color:#52677e;font-weight:400}.parent-company-note a{color:inherit}.company-parent>dt{font-size:14px}</style></head><body><header><a href="/">Orgindex</a></header><main><a href="/">← Till företagssökningen</a><p id="status" role="status">Hämtar företagsuppgifter…</p><div id="profile" hidden><section class="card"><span class="tag">Företagsinformation · SCB</span><h1 id="name"></h1><p id="number"></p></section><h2>Företagsfakta</h2><div class="grid"><article class="card"><div class="label">Organisationsnummer</div><div class="value" id="orgnr"></div></article><article class="card"><div class="label">Datakälla</div><div class="value">SCB</div></article><article class="card industry-location">
+.industry-location dl{display:grid;gap:10px;margin:0}.industry-location .company-activity{grid-column:1/-1}.industry-location .company-activity dd{font-weight:400}.industry-location dd{margin:2px 0 0;font-weight:700}html.embedded #profile>div.grid:first-of-type{display:block}html.embedded #profile>div.grid:first-of-type>.card:not(.industry-location){display:none}html.embedded .industry-location dl{grid-template-columns:repeat(2,minmax(0,1fr))}.industry-location .company-employees{grid-column:1/-1}.company-employees .label{font-size:14px}.employee-value{display:block;font-size:22px;line-height:1.3}.employee-value[data-missing="true"]{font-size:16px;font-weight:400}.employee-note{display:block;margin-top:4px;color:#52677e;font-size:13px;line-height:1.4;font-weight:400}.contact-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px 24px;margin:16px 0 0}.contact-links dt{font-size:14px;color:#52677e}.contact-links dd{margin:0}.contact-links a{display:inline-block;padding:8px 0;font-size:16px;overflow-wrap:anywhere}.contact-source{display:block;margin-top:8px;font-size:13px;color:#52677e}.industry-location .company-parent{grid-column:1/-1}.parent-company-note{display:block;margin-top:4px;font-size:13px;line-height:1.4;color:#52677e;font-weight:400}.parent-company-note a{color:inherit}.company-parent>dt{font-size:14px}.industry-note{display:block;margin-top:4px;font-size:12px;line-height:1.4;font-weight:400;color:#52677e}.industry-note a{color:inherit}</style></head><body><header><a href="/">Orgindex</a></header><main><a href="/">← Till företagssökningen</a><p id="status" role="status">Hämtar företagsuppgifter…</p><div id="profile" hidden><section class="card"><span class="tag">Företagsinformation · SCB</span><h1 id="name"></h1><p id="number"></p></section><h2>Företagsfakta</h2><div class="grid"><article class="card"><div class="label">Organisationsnummer</div><div class="value" id="orgnr"></div></article><article class="card"><div class="label">Datakälla</div><div class="value">SCB</div></article><article class="card industry-location">
  <dl><div><dt class="label">Bransch</dt><dd id="industry-name">Uppgift saknas</dd></div>
  <div><dt class="label">Ort</dt><dd id="company-city">Uppgift saknas</dd></div>
  <div class="company-employees"><dt class="label">Antal anställda</dt><dd><span class="employee-value" id="company-employees" data-missing="true">Uppgift saknas</span><span class="employee-note" id="company-employees-note"></span></dd></div>
@@ -204,12 +204,32 @@ if (parentCompany && typeof parentCompany.name === 'string' && parentCompany.nam
 }
 
 const verifiedCompanyFacts = {
+ '5566733472': {
+  industryName: 'Värmepumpar',
+  industrySource: 'https://www.svenskkylservice.se/',
+  industryVerifiedAt: '2026-11-28'
+ },
  '5594860594': {
   website: 'https://www.napsthlm.com/',
   activity: 'Driver en hudvårdsstudio med ansiktsbehandlingar och massage och säljer hudvårdsprodukter.'
  }
 };
 const facts = verifiedCompanyFacts[d.orgnr];
+if (facts?.industryName) {
+ const industryValue = document.getElementById('industry-name');
+ industryValue.textContent = facts.industryName;
+ const note = document.createElement('span');
+ note.className = 'industry-note';
+ note.append('Registrerad bransch (SCB): ' + industry, document.createElement('br'));
+ const sourceLink = document.createElement('a');
+ sourceLink.href = facts.industrySource;
+ sourceLink.textContent = 'företagets webbplats';
+ sourceLink.target = '_blank';
+ sourceLink.rel = 'noopener noreferrer';
+ sourceLink.title = 'Kontrollerad ' + facts.industryVerifiedAt;
+ note.append('Inriktning enligt ', sourceLink);
+ industryValue.append(note);
+}
 const activity = facts?.activity || d.businessDescription;
 if (activity) {
  document.getElementById('company-activity-text').textContent = activity;
