@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -22,10 +23,12 @@ YEARS = tuple(range(2026, 2019, -1))
 ORIGIN = "https://vardefulla-datamangder.bolagsverket.se"
 URL_PATTERN = re.compile(re.escape(ORIGIN) + r"/arsredovisningar-bulkfiler/arsredovisningar/(202[0-6])/(\d{2})_(\d+)\.zip\Z")
 MAX_BYTES = 256 * 1024 * 1024
+MAX_DOWNLOAD_ATTEMPTS = 4
+DOWNLOAD_DEADLINE_SECONDS = 150
 MAX_CONCURRENT_IMPORTS = 3
 CLAIM_LOCK = 18472640
 COMMIT_LOCK = 18472641
-PARSER_VERSION = "memory-2026-11-28-v1"
+PARSER_VERSION = "memory-2026-11-28-v2"
 
 
 class ImportFailure(RuntimeError):
@@ -152,31 +155,98 @@ def download(url):
     buffer = io.BytesIO()
     digest = hashlib.sha256()
     started = time.monotonic()
-    request = urllib.request.Request(url, headers={"User-Agent": "Orgindex-Bolagsverket-Importer/1.0"})
+    expected_size = None
+    validator = None
+    validator_header = None
+    last_error = "incomplete_download"
     try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
-            length = response.headers.get("Content-Length")
-            if length and int(length) > MAX_BYTES:
-                raise ImportFailure("archive_too_large")
-            while True:
-                part = response.read(1024 * 1024)
-                if not part:
-                    break
-                if buffer.tell() + len(part) > MAX_BYTES:
-                    raise ImportFailure("archive_too_large")
-                buffer.write(part)
-                digest.update(part)
-                if time.monotonic() - started > 150:
-                    raise ImportFailure("download_deadline")
-            if length and buffer.tell() != int(length):
-                raise ImportFailure("incomplete_download")
-    except urllib.error.HTTPError as exc:
-        raise ImportFailure(f"source_http_{exc.code}") from None
-    except (urllib.error.URLError, TimeoutError):
-        raise ImportFailure("source_connection_failed") from None
-    size = buffer.tell()
-    buffer.seek(0)
-    return buffer, size, digest.hexdigest()
+        for _ in range(MAX_DOWNLOAD_ATTEMPTS):
+            remaining = DOWNLOAD_DEADLINE_SECONDS - (time.monotonic() - started)
+            if remaining <= 0:
+                raise ImportFailure("download_deadline")
+            offset = buffer.tell()
+            headers = {"User-Agent": "Orgindex-Bolagsverket-Importer/1.0",
+                       "Accept-Encoding": "identity"}
+            resume = bool(offset and expected_size is not None and validator)
+            if resume:
+                headers.update({"Range": f"bytes={offset}-", "If-Range": validator})
+            elif offset:
+                # Never combine bytes without a validator for the same source.
+                buffer.seek(0)
+                buffer.truncate()
+                digest = hashlib.sha256()
+                offset = 0
+            request = urllib.request.Request(url, headers=headers)
+            try:
+                with urllib.request.build_opener(NoRedirect()).open(
+                        request, timeout=min(30, remaining)) as response:
+                    if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+                        raise ImportFailure("unsupported_source_encoding")
+                    length = response.headers.get("Content-Length")
+                    if length is not None and not re.fullmatch(r"[0-9]+", length):
+                        raise ImportFailure("invalid_source_length")
+                    length = int(length) if length is not None else None
+                    if response.status == 206 and resume:
+                        match = re.fullmatch(r"bytes ([0-9]+)-([0-9]+)/([0-9]+)",
+                                             response.headers.get("Content-Range", ""))
+                        if not match:
+                            raise ImportFailure("invalid_source_range")
+                        first, last, total = map(int, match.groups())
+                        if (first != offset or last < first or last >= total
+                                or total != expected_size
+                                or (length is not None and length != last - first + 1)):
+                            raise ImportFailure("invalid_source_range")
+                        if response.headers.get(validator_header) != validator:
+                            raise ImportFailure("source_changed_during_download")
+                    elif response.status == 200:
+                        # If-Range may legitimately yield a new complete version.
+                        # Discard the previous prefix before reading that response.
+                        if offset:
+                            buffer.seek(0)
+                            buffer.truncate()
+                            digest = hashlib.sha256()
+                        expected_size = length
+                        etag = response.headers.get("ETag")
+                        validator_header = "ETag" if etag and not etag.startswith("W/") else "Last-Modified"
+                        validator = response.headers.get(validator_header)
+                    else:
+                        raise ImportFailure("unexpected_source_status")
+                    if expected_size is not None and expected_size > MAX_BYTES:
+                        raise ImportFailure("archive_too_large")
+                    interrupted = False
+                    while True:
+                        if time.monotonic() - started > DOWNLOAD_DEADLINE_SECONDS:
+                            raise ImportFailure("download_deadline")
+                        try:
+                            part = response.read(1024 * 1024)
+                        except http.client.IncompleteRead as exc:
+                            part = exc.partial
+                            interrupted = True
+                        if part:
+                            if buffer.tell() + len(part) > MAX_BYTES:
+                                raise ImportFailure("archive_too_large")
+                            if expected_size is not None and buffer.tell() + len(part) > expected_size:
+                                raise ImportFailure("invalid_source_length")
+                            buffer.write(part)
+                            digest.update(part)
+                        if not part or interrupted:
+                            break
+                    if (expected_size is not None and buffer.tell() == expected_size
+                            or expected_size is None and not interrupted):
+                        size = buffer.tell()
+                        buffer.seek(0)
+                        return buffer, size, digest.hexdigest()
+                    last_error = "incomplete_download"
+            except urllib.error.HTTPError as exc:
+                last_error = f"source_http_{exc.code}"
+                if exc.code not in (408, 429, 500, 502, 503, 504):
+                    raise ImportFailure(last_error) from None
+            except (urllib.error.URLError, OSError, http.client.HTTPException):
+                last_error = "source_connection_failed"
+        raise ImportFailure(last_error)
+    except BaseException:
+        buffer.close()
+        raise
 
 
 PREPARE_COMPANIES_SQL = """WITH owned AS MATERIALIZED (
@@ -255,7 +325,7 @@ COMMIT_SQL = """WITH owned AS MATERIALIZED (
 
 
 def import_one(db, cached_archive=None):
-    from scripts.bv_parse import parse_archive
+    from scripts.bv_parse import ParseError, parse_archive
 
     job = claim(db)
     if not job:
@@ -280,7 +350,7 @@ def import_one(db, cached_archive=None):
         parsed_at = time.monotonic()
         if not parsed["report_count"]:
             raise ImportFailure("empty_archive")
-        diagnostics = {k: parsed.get(k, []) for k in ("skipped", "conflicts")}
+        diagnostics = {k: parsed.get(k, []) for k in ("skipped", "conflicts", "ignored_attachments")}
         records = json_text(parsed["rows"])
         # Preparing companies in a prior statement also sees concurrent SCB inserts
         # before the account statement's snapshot. Both statements commit together.
@@ -303,7 +373,11 @@ def import_one(db, cached_archive=None):
                             "commit": round(time.monotonic()-parsed_at, 2),
                             "total": round(time.monotonic()-started, 2)}}
     except Exception as exc:
-        message = str(exc) if isinstance(exc, ImportFailure) else type(exc).__name__
+        # Parser failures are controlled diagnostic codes. Preserve their reason
+        # so a permanently failing file can be repaired instead of retried blind.
+        # Unknown exceptions can contain credentials and remain class names only.
+        message = str(exc) if isinstance(exc, (ImportFailure, ParseError)) else type(exc).__name__
+        message = re.sub(r"[\r\n\t]", " ", message)[:500]
         db.sql("""UPDATE public.orgindex_bolagsverket_file_queue
            SET status='failed',lease_until=NULL,updated_at=now(),last_error=$3,
                next_attempt_at=now()+(least(3600,60*power(2,least(attempts,6)))::int * interval '1 second')

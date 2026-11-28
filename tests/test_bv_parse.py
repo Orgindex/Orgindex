@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from bv_parse import ParseError, parse_archive
 
 
-def archive(facts, extra=""):
+def archive(facts, extra="", *, nested_layers=0, attachments=()):
     document = f'''<html xmlns="http://www.w3.org/1999/xhtml"
         xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
         xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:iso4217="urn:currency">
@@ -25,6 +25,13 @@ def archive(facts, extra=""):
     inner = BytesIO()
     with zipfile.ZipFile(inner, "w", zipfile.ZIP_DEFLATED) as target:
         target.writestr("filing.xhtml", document)
+        for name, content in attachments:
+            target.writestr(name, content)
+    for _ in range(nested_layers):
+        wrapper = BytesIO()
+        with zipfile.ZipFile(wrapper, "w", zipfile.ZIP_DEFLATED) as target:
+            target.writestr("package.zip", inner.getvalue())
+        inner = wrapper
     outer = BytesIO()
     with zipfile.ZipFile(outer, "w", zipfile.ZIP_DEFLATED) as target:
         target.writestr("5569765794_2025-12-31.zip", inner.getvalue())
@@ -85,6 +92,67 @@ class ParserRegressionTests(unittest.TestCase):
         with patch("bv_parse.MAX_DOCUMENT_BYTES", 8):
             with self.assertRaises(ParseError):
                 parse_archive(archive(fact("Nettoomsattning", "100")))
+
+    def test_nested_esef_package_preserves_company_period_and_diagnostic_path(self):
+        result = parse_archive(archive(fact("Nettoomsattning", "123 456")
+            + fact("EgetKapital", "bad-value", context="balance"), nested_layers=2))
+        self.assertEqual(result["report_count"], 1)
+        row = result["rows"][0]
+        self.assertEqual(row["orgnr"], "5569765794")
+        self.assertEqual(row["period_start"], "2025-01-01")
+        self.assertEqual(row["period_end"], "2025-12-31")
+        self.assertEqual(row["net_revenue"], Decimal("123456"))
+        self.assertEqual(row["source_document_id"], "filing")
+        self.assertEqual(result["skipped"][0]["document"], "package.zip/package.zip/filing.xhtml")
+        self.assertIn("bad-value", result["skipped"][0]["content"])
+
+    def test_oversized_unsupported_attachment_is_not_read(self):
+        original_read = zipfile.ZipFile.read
+        read_names = []
+
+        def tracked_read(source, item, *args, **kwargs):
+            read_names.append(item.filename if isinstance(item, zipfile.ZipInfo) else item)
+            return original_read(source, item, *args, **kwargs)
+
+        source = archive(fact("Nettoomsattning", "100"), attachments=[("image.png", b"x" * 5000)])
+        with patch("bv_parse.MAX_DOCUMENT_BYTES", 2000), patch.object(zipfile.ZipFile, "read", tracked_read):
+            result = parse_archive(source)
+        self.assertEqual(result["rows"][0]["net_revenue"], Decimal("100"))
+        self.assertNotIn("image.png", read_names)
+        self.assertEqual(result["ignored_attachments"], [dict(
+            archive_member="5569765794_2025-12-31.zip", document="image.png",
+            declared_bytes=5000, reason="unsupported_attachment_type")])
+
+    def test_corrupt_nested_zip_is_not_silently_ignored(self):
+        with self.assertRaisesRegex(ParseError, "invalid_zip:BadZipFile"):
+            parse_archive(archive(fact("Nettoomsattning", "100"),
+                                  attachments=[("broken.zip", b"not a zip")]))
+
+    def test_nested_zip_depth_is_bounded(self):
+        with patch("bv_parse.MAX_NESTED_ZIP_DEPTH", 1):
+            with self.assertRaisesRegex(ParseError, "nested_archive_depth_limit"):
+                parse_archive(archive(fact("Nettoomsattning", "100"), nested_layers=2))
+
+    def test_nested_zip_expansion_counts_all_layers(self):
+        source = archive(fact("Nettoomsattning", "100"), nested_layers=1)
+        with zipfile.ZipFile(source) as outer:
+            with zipfile.ZipFile(BytesIO(outer.read(outer.infolist()[0]))) as inner:
+                wrapper_expansion = sum(item.file_size for item in inner.infolist())
+        source.seek(0)
+        with patch("bv_parse.MAX_TOTAL_EXPANSION", wrapper_expansion + 1):
+            with self.assertRaisesRegex(ParseError, "archive_expansion_limit"):
+                parse_archive(source)
+
+    def test_nested_zip_entries_count_across_each_company_package(self):
+        with patch("bv_parse.MAX_INNER_ENTRIES", 1):
+            with self.assertRaisesRegex(ParseError, "too_many_inner_entries"):
+                parse_archive(archive(fact("Nettoomsattning", "100"), nested_layers=1))
+
+    def test_unmapped_nested_document_is_retained(self):
+        result = parse_archive(archive("", extra="<!--" + "x" * 10000 + "-->", nested_layers=1))
+        self.assertEqual(result["rows"], [])
+        self.assertEqual(result["skipped"][0]["reason"], "no_unambiguous_revenue_or_profit")
+        self.assertGreater(len(result["skipped"][0]["content"]), 10000)
 
 
 if __name__ == "__main__":

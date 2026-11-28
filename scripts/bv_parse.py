@@ -21,13 +21,15 @@ FIELDS = dict(zip(("Nettoomsattning", "Rorelseresultat",
                    "ResultatEfterFinansiellaPoster", "AretsResultat",
                    "Tillgangar", "EgetKapital", "MedelantaletAnstallda"), METRICS))
 FIELDS["MedelantalAnstallda"] = "employees"
-MAX_INNER_BYTES = 64 * 1024 * 1024
-MAX_DOCUMENT_BYTES = 32 * 1024 * 1024
+# Verified ESEF sources include ZIPs above 64 MiB and XHTML above 96 MiB.
+MAX_INNER_BYTES = 128 * 1024 * 1024
+MAX_DOCUMENT_BYTES = 128 * 1024 * 1024
 MAX_OUTER_EXPANSION = 1024 * 1024 * 1024
 MAX_TOTAL_EXPANSION = 2 * 1024 * 1024 * 1024
-MAX_RETAINED_EXCEPTIONS = 128 * 1024 * 1024
+MAX_RETAINED_EXCEPTIONS = 256 * 1024 * 1024
 MAX_REPORTS = 20000
 MAX_INNER_ENTRIES = 1000
+MAX_NESTED_ZIP_DEPTH = 3
 
 
 class ParseError(ValueError):
@@ -172,9 +174,44 @@ def parse_archive(source):
     rows = {}
     skipped = []
     conflicts = []
+    ignored_attachments = []
     report_count = 0
     total_expansion = 0
     retained = 0
+    report_entries = 0
+
+    def documents(source, archive_member, prefix="", depth=0):
+        """Walk bounded ZIP packages while preserving the enclosing report identity.
+
+        Listed companies can put an ESEF taxonomy/report package inside the
+        company's ZIP. Entry counts accumulate across that company's packages;
+        decompressed sizes accumulate across the whole bulk archive.
+        """
+        nonlocal total_expansion, report_entries
+        with zipfile.ZipFile(BytesIO(source)) as inner:
+            items = [item for item in inner.infolist() if not item.is_dir()]
+            report_entries += len(items)
+            if report_entries > MAX_INNER_ENTRIES:
+                raise ParseError("too_many_inner_entries")
+            total_expansion += sum(item.file_size for item in items)
+            if total_expansion > MAX_TOTAL_EXPANSION:
+                raise ParseError("archive_expansion_limit")
+            for item in items:
+                name = prefix + item.filename
+                if item.filename.lower().endswith(".zip"):
+                    if depth >= MAX_NESTED_ZIP_DEPTH:
+                        raise ParseError("nested_archive_depth_limit")
+                    if item.file_size > MAX_INNER_BYTES:
+                        raise ParseError("inner_archive_too_large")
+                    yield from documents(inner.read(item), archive_member, name + "/", depth + 1)
+                elif item.filename.lower().endswith((".html", ".xhtml", ".xml", ".xbrl")):
+                    if item.file_size > MAX_DOCUMENT_BYTES:
+                        raise ParseError("document_too_large")
+                    yield name, inner.read(item)
+                else:
+                    ignored_attachments.append(dict(archive_member=archive_member,
+                        document=name, declared_bytes=item.file_size,
+                        reason="unsupported_attachment_type"))
 
     def retain(member, document, reason, content=None):
         nonlocal retained
@@ -200,26 +237,15 @@ def parse_archive(source):
                 report_count += 1
                 document_results = []
                 raw_documents = []
-                with zipfile.ZipFile(BytesIO(outer.read(member))) as inner:
-                    items = [item for item in inner.infolist() if not item.is_dir()]
-                    if len(items) > MAX_INNER_ENTRIES:
-                        raise ParseError("too_many_inner_entries")
-                    total_expansion += sum(item.file_size for item in items)
-                    if total_expansion > MAX_TOTAL_EXPANSION:
-                        raise ParseError("archive_expansion_limit")
-                    for item in items:
-                        if item.file_size > MAX_DOCUMENT_BYTES:
-                            raise ParseError("document_too_large")
-                        if not item.filename.lower().endswith((".html", ".xhtml", ".xml", ".xbrl")):
-                            continue
-                        content = inner.read(item)
-                        row, issues, reason = _document(content, orgnr, period_end, member.filename, item.filename)
-                        conflicts.extend(issues)
-                        raw_documents.append((item.filename, reason, content))
-                        if row:
-                            document_results.append(row)
-                            if reason:
-                                retain(member.filename, item.filename, reason, content)
+                report_entries = 0
+                for document, content in documents(outer.read(member), member.filename):
+                    row, issues, reason = _document(content, orgnr, period_end, member.filename, document)
+                    conflicts.extend(issues)
+                    raw_documents.append((document, reason, content))
+                    if row:
+                        document_results.append(row)
+                        if reason:
+                            retain(member.filename, document, reason, content)
                 if not document_results:
                     for doc, reason, content in raw_documents:
                         retain(member.filename, doc, reason or "no_financial_document", content)
@@ -254,6 +280,7 @@ def parse_archive(source):
         for row in rows.values():
             row.pop("_precision", None)
             row.pop("_values", None)
-        return dict(rows=list(rows.values()), report_count=report_count, skipped=skipped, conflicts=conflicts)
+        return dict(rows=list(rows.values()), report_count=report_count, skipped=skipped,
+                    conflicts=conflicts, ignored_attachments=ignored_attachments)
     except (zipfile.BadZipFile, RuntimeError, EOFError, NotImplementedError) as exc:
         raise ParseError("invalid_zip:" + type(exc).__name__) from exc
